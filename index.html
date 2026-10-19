@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <title>CAPITÃO BALA</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="css/style.css?v=202610191545" />
+<link rel="stylesheet" href="css/style.css?v=202610191700" />
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js", "three/addons/": "./js/vendor/addons/" } }
 </script>
@@ -83,11 +83,21 @@
 <section id="tela-pausa" class="screen panel-screen" hidden>
   <div class="panel">
     <h2>Pausado</h2>
+    <div id="pausa-upg" class="pausa-upg"></div>
     <button id="btn-continuar" class="btn btn-primary">▶ Continuar</button>
     <button id="btn-reiniciar" class="btn btn-ghost">↻ Reiniciar</button>
     <button id="btn-som2" class="btn btn-ghost small">🔊 Som: ligado</button>
     <button id="btn-config2" class="btn btn-ghost small">⚙ Configurações</button>
     <button id="btn-menu" class="btn btn-ghost small">Menu inicial</button>
+  </div>
+</section>
+
+<section id="tela-cartas" class="screen cartas-screen" hidden>
+  <div class="cartas-box">
+    <div class="cartas-sub" id="cartas-sub">Onda concluída!</div>
+    <h2>ESCOLHA UM PODER</h2>
+    <div id="cartas" class="cartas"></div>
+    <div class="cartas-dica" id="cartas-dica">Toque em uma carta</div>
   </div>
 </section>
 
@@ -103,6 +113,7 @@
       <div><span>Maior combo</span><b id="fim-combo">0</b></div>
       <div><span>Recorde</span><b id="fim-melhor">0</b></div>
     </div>
+    <div class="fim-poderes-wrap"><span>Arsenal</span><div id="fim-poderes" class="fim-poderes"></div></div>
     <button id="btn-denovo" class="btn btn-primary">↻ Jogar de novo</button>
     <button id="btn-fim-menu" class="btn btn-ghost small">Menu inicial</button>
   </div>
@@ -110,6 +121,6 @@
 
 <div id="loading">Carregando arena…</div>
 <div id="erro" hidden></div>
-<script type="module" src="js/main.js?v=202610191545"></script>
+<script type="module" src="js/main.js?v=202610191700"></script>
 </body>
 </html>

@@ -2,18 +2,28 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610191545
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610191700
 
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), vibração e som — salvos no aparelho.
 - Celular: arraste à esquerda para andar, tiro automático no inimigo mais perto, arraste à direita para mirar, botão ESQUIVA.
 - PC: WASD/setas, mouse para mirar (segure o clique), Espaço = esquiva, P/Esc = pausa.
 - Ondas crescentes, 3 tipos de inimigo (zumbi, robô veloz, robô tanque), chefe a cada 5 ondas.
-- Itens: espingarda, tiro rápido, vida. Recorde salvo no aparelho.
+- Entre as ondas: escolha 1 de 3 cartas de PODER. Armas: Blaster, Espingarda LEQUE, LASER contínuo e Lança-GRANADAS.
+- Itens: espingarda, tiro rápido, vida e armas raras. Recorde salvo no aparelho.
 - Gráficos: sombras dinâmicas, bloom (UnrealBloomPass), partículas, luz do disparo, malhas instanciadas e qualidade adaptativa (`?q=0|1|2` força baixa/média/alta).
 
 Toda a arte é gerada por código (formas simples) e todos os sons são sintetizados com WebAudio. Three.js © autores do three.js (MIT), em `js/vendor`.
 
 ## Novidades
+
+### v4 (19/10/2026)
+- **Cartas de poder** depois de cada onda (inclusive a do chefe): 3 cartas grandes, fáceis de tocar, com ícone, descrição e cor de raridade (comum, raro, épico, arma). PC: clique, teclas 1/2/3 ou setas + Enter.
+- 17 cartas que acumulam com limite: Dano+, Cadência+, Botas Turbo, Vida Máx+, Kit Médico, Olho de Águia (crítico), Esquiva Rápida, Ímã, Tiro Múltiplo, Perfuração, Ricochete, Recarga Vital, Escudo Regenerativo, Abate Explosivo e as 3 armas novas.
+- Poderes aparecem como ícones no HUD, na pausa e na tela final.
+- **3 armas novas**, com visual e som próprios, todas em malhas instanciadas/pool: Espingarda LEQUE (rajada em leque com empurrão), LASER contínuo (atravessa inimigos e para nos pilares) e Lança-GRANADAS (arco com explosão em área). Vêm de cartas ou como drop raro, e o chefe sempre solta uma arma.
+- **Chefes com personalidade**: cada um dos 5 tem sua sequência de ataques. São 6 golpes: investida, anel de tiros, rajada mirada, invocação, salto esmagador e espiral. Todos têm aviso no chão (círculo ou faixa que enche) antes do golpe, visível no retrato.
+- Trilha do chefe ganha uma camada mais intensa (baixo mais rápido e melodia).
+- **Balanceamento**: inimigos ganham mais vida (crescimento quadrático suave) e causam mais dano a cada onda, para acompanhar os poderes. Vida e armas caem com menos frequência.
 
 ### v3 (19/10/2026)
 - Desempenho no Galaxy: detecta o aparelho (memória, núcleos e GPU Mali/Adreno/Xclipse) e escolhe a qualidade inicial; aparelhos intermediários começam sem sombras e os básicos em Baixa. Resolução limitada no celular (máx. 1,0 / 1,4 / 1,8).

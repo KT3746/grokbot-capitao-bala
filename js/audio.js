@@ -2,7 +2,7 @@
 let ctx = null, master = null, musicGain = null, noiseBuf = null;
 let muted = false;
 try { muted = localStorage.getItem('cb-mudo') === '1'; } catch (_) {}
-let musicOn = false, musicTimer = null, step = 0, nextTime = 0;
+let musicOn = false, musicTimer = null, step = 0, nextTime = 0, intensity = 0, laserNodes = null;
 
 export function initAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
@@ -68,11 +68,23 @@ export const sfx = {
   click() { tone('square', 660, 880, 0.05, 0.08); },
   over() { [392, 330, 262, 196].forEach((f, i) => tone('triangle', f, f * 0.98, 0.35, 0.2, i * 0.22)); },
   heartbeat() { if (!ctx) return; tone('sine', 78, 42, 0.16, 0.55); tone('sine', 70, 38, 0.2, 0.42, 0.2); noise(0.06, 0.08, 220, 1, 'lowpass'); },
+  leque() { if (!ctx) return; const n = ctx.currentTime; if (n - lastShot < 0.045) return; lastShot = n; noise(0.26, 0.6, 1200, 0.6, 'lowpass', 0, master, 180); tone('square', 120, 40, 0.16, 0.2); noise(0.04, 0.3, 4000, 1, 'highpass'); },
+  lob() { tone('triangle', 300, 520, 0.12, 0.12); noise(0.1, 0.12, 900, 1, 'bandpass', 0, master, 2400); },
+  grenade() { noise(0.8, 0.85, 700, 0.7, 'lowpass', 0, master, 50); tone('sine', 95, 28, 0.7, 0.6); tone('square', 60, 30, 0.25, 0.12); },
+  shield() { tone('triangle', 1200, 300, 0.25, 0.18); tone('sine', 600, 900, 0.18, 0.1, 0.05); noise(0.1, 0.15, 6000, 2, 'bandpass'); },
+  shieldUp() { tone('sine', 500, 1000, 0.18, 0.08); },
+  cards() { [392, 523, 659, 784].forEach((f, i) => tone('triangle', f, f, 0.22, 0.1, i * 0.05)); noise(0.3, 0.06, 5000, 1, 'highpass'); },
+  pick(r) { const b = r === 'epico' || r === 'arma' ? [523, 784, 1046, 1568] : r === 'raro' ? [523, 659, 988] : [523, 784]; b.forEach((f, i) => tone('square', f, f, 0.14, 0.09, i * 0.06)); },
+  weapon() { [330, 440, 660, 880].forEach((f, i) => tone('sawtooth', f, f * 1.01, 0.12, 0.07, i * 0.05)); noise(0.2, 0.1, 3000, 1, 'bandpass'); },
+  warn() { tone('square', 880, 880, 0.08, 0.06); tone('square', 660, 660, 0.08, 0.06, 0.1); },
+  slam() { noise(0.9, 0.9, 500, 0.7, 'lowpass', 0, master, 40); tone('sine', 70, 25, 0.8, 0.7); },
+  blast() { noise(0.3, 0.35, 1100, 0.8, 'lowpass', 0, master, 120); tone('sine', 140, 40, 0.2, 0.2); },
   record() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.1)); },
 };
 
 // Trilha simples: baixo + bumbo + chimbal, em loop
 const BASS = [55, 55, 65.4, 55, 73.4, 55, 65.4, 49];
+const LEAD = [440, 523.3, 659.3, 523.3, 587.3, 698.5, 880, 784];
 function scheduleMusic() {
   if (!ctx || !musicOn) return;
   while (nextTime < ctx.currentTime + 0.25) {
@@ -82,7 +94,13 @@ function scheduleMusic() {
     if (s % 2 === 1) noise(0.04, 0.12, 7000, 1, 'highpass', when, musicGain);
     if (s % 8 === 4) noise(0.12, 0.18, 1800, 0.8, 'bandpass', when, musicGain);
     if (s % 2 === 0) tone('sawtooth', BASS[(step >> 1) % 8], BASS[(step >> 1) % 8], 0.16, 0.12, when, musicGain);
-    step++; nextTime += 0.125;
+    if (intensity > 0) { // camada de chefe: chimbal em semicolcheia, bumbo extra, arpejo e "stab"
+      noise(0.025, 0.07, 9000, 1, 'highpass', when + 0.055, musicGain);
+      if (s === 10 || s === 14) tone('sine', 140, 40, 0.16, 0.42, when, musicGain);
+      if (s % 2 === 0) { const f = LEAD[(step >> 1) % 8]; tone('square', f, f, 0.09, 0.045, when, musicGain); }
+      if (s % 8 === 0) tone('sawtooth', BASS[(step >> 1) % 8] * 2, BASS[(step >> 1) % 8], 0.32, 0.09, when, musicGain);
+    }
+    step++; nextTime += intensity > 0 ? 0.112 : 0.125;
   }
 }
 export function music(on) {
@@ -90,4 +108,22 @@ export function music(on) {
   musicOn = on;
   if (on && !musicTimer) { nextTime = ctx.currentTime + 0.05; musicTimer = setInterval(scheduleMusic, 60); }
   if (!on && musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+export function musicIntensity(v) { intensity = v; }
+// laser contínuo: zumbido com LFO enquanto o feixe está ligado
+export function laser(on) {
+  if (!ctx) return;
+  if (on && !laserNodes) {
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o1.type = 'sawtooth'; o1.frequency.value = 180; o2.type = 'square'; o2.frequency.value = 271;
+    f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 3;
+    lfo.frequency.value = 14; lg.gain.value = 500; lfo.connect(lg); lg.connect(f.frequency);
+    g.gain.value = 0; g.gain.setTargetAtTime(0.07, ctx.currentTime, 0.02);
+    o1.connect(f); o2.connect(f); f.connect(g); g.connect(master);
+    o1.start(); o2.start(); lfo.start();
+    laserNodes = { o1, o2, lfo, g };
+  } else if (!on && laserNodes) {
+    const n = laserNodes; laserNodes = null; const t = ctx.currentTime;
+    n.g.gain.setTargetAtTime(0, t, 0.03); for (const o of [n.o1, n.o2, n.lfo]) o.stop(t + 0.2);
+  }
 }
