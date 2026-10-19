@@ -5,10 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610192130';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610192200';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, animInject, animDepthMaterial } from './models.js?v=202610192130';
-import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610192130';
+import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, animInject, animDepthMaterial } from './models.js?v=202610192200';
+import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610192200';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -671,6 +671,19 @@ function resetRun() {
   setWeapon('blaster', true); runPicks.length = 0;
 }
 const runPicks = [];
+// ---- continuar e retomar partida
+// contUsed: continues usados nesta partida; banked: moedas/abates já somados ao progresso (evita contar 2x ao continuar)
+let contUsed = 0, runCounted = false; const banked = { coins: 0, kills: 0 };
+const contMax = () => 1 + lvl('segunda');
+const RUN_KEY = 'cb-partida';
+function saveRun() {
+  if (demo) return;
+  const snap = { v: 1, wave, score, kills, maxCombo, bosses: bossesKilled.n, up: { ...up }, weapon: player.weapon, weapons: [...runWeapons], picks: [...runPicks],
+    maxHp: player.maxHp, hp: Math.round(player.hp), arena, cont: contUsed, banked: { ...banked }, counted: runCounted, dashes: dashesUsed, hit: runHit, t: Date.now() };
+  LS.set(RUN_KEY, JSON.stringify(snap));
+}
+function loadRun() { try { const j = JSON.parse(LS.get(RUN_KEY, 'null')); return j && j.v === 1 && j.wave >= 1 && UPG_BY && WEAPONS[j.weapon] ? j : null; } catch (_) { return null; } }
+function clearRun() { try { localStorage.removeItem(RUN_KEY); } catch (_) {} }
 const runWeapons = new Set(); let runHit = false, runBombs = 0;
 function heal(v) {
   const h = Math.min(v, player.maxHp - player.hp); if (h <= 0) return;
@@ -1367,7 +1380,7 @@ function showBanner(html, cls = '') {
   const b = $('banner'); b.innerHTML = html; b.className = cls; b.hidden = true; void b.offsetWidth; b.hidden = false;
   clearTimeout(showBanner.t); showBanner.t = setTimeout(() => (b.hidden = true), 1900);
 }
-function startWave(n) {
+function startWave(n, quick = false) {
   wave = n; waveState = 'fight';
   // inimigos escalam mais forte que antes (o jogador agora evolui com poderes)
   waveScale = { hp: 1 + 0.15 * (n - 1) + 0.006 * (n - 1) ** 2, sp: n === 1 ? 0.82 : n === 2 ? 0.9 : Math.min(1.55, 1 + 0.035 * (n - 1)), dmg: 1 + 0.05 * (n - 1) };
@@ -1394,12 +1407,13 @@ function startWave(n) {
   spawnT = isBoss ? 3.6 : 1.2;
   if (isBoss) {
     spawnBoss(n / 5);
-    if (!demo) startBossCine(); else showBanner(`CHEFE!<small>${boss.name}</small>`, 'boss');
+    if (!demo && !quick) startBossCine(); else showBanner(`CHEFE!<small>${boss.name}${quick ? ' — vida cheia, de novo!' : ''}</small>`, 'boss'); // ao continuar, sem a cinemática longa
     sfx.boss(); vibrate([60, 40, 60]);
   } else {
-    showBanner(`ONDA ${n}<small>${tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : n % 5 === 4 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
+    showBanner(`ONDA ${n}<small>${quick ? 'Recomeçando a onda: você consegue!' : tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : n % 5 === 4 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
     sfx.wave();
   }
+  saveRun(); // salva no início de cada onda (se o app fechar, o título oferece "Retomar partida")
 }
 function spawnBoss(bi) {
   const B = bossModel;
@@ -2309,12 +2323,61 @@ function startGame() {
   demo = false; state = 'playing'; cardsPending = false;
   if (arena === 'porto') unlockAch('porto');
   score = 0; kills = 0; combo = 0; maxCombo = 0; bossesKilled.n = 0; wave = 0; lastHit = ''; dashesUsed = 0;
+  contUsed = 0; runCounted = false; banked.coins = banked.kills = 0; clearRun();
   for (const k in hud) hud[k] = k === 'pw' ? '' : -1;
   show(null); $('hud').hidden = false; measureHud(); wipe();
   tryFullscreen(); wakeLock(true);
   camPos.set(0, 22, 14);
   music(true);
   startWave(1);
+}
+function enterPlay() {
+  show(null); $('hud').hidden = false; measureHud(); wipe();
+  tryFullscreen(); wakeLock(true); music(true); last = performance.now();
+}
+// CONTINUAR: recomeça a onda atual do zero, com poderes, arma, pontos e moedas mantidos
+function continueRun() {
+  if (state !== 'over' || contUsed >= contMax()) return;
+  initAudio(); sfx.click(); contUsed++;
+  const inter = waveState === 'intermission';
+  runId++; clearWorld(); resetPlayer();
+  player.hp = player.maxHp; player.inv = 2.6; player.shieldOn = L('escudo') > 0 || lvl('escudo') > 0; player.shieldT = 0;
+  combo = 0; state = 'playing'; demo = false;
+  for (const k in hud) hud[k] = k === 'pw' ? '' : -1;
+  enterPlay();
+  if (inter) { interT = 1.2; showBanner('CONTINUANDO!<small>Vida cheia</small>'); saveRun(); } // morreu entre ondas: segue para a próxima
+  else startWave(wave, true);
+  dmgNum(player.x, 3, player.z, 'VIDA CHEIA!', 'heal'); sfx.power(); vibrate([30, 40, 30]);
+}
+// RETOMAR: volta ao início da onda salva (app fechado no meio da partida); só uma vez
+function resumeRun() {
+  const r = loadRun(); clearRun(); paintResume();
+  if (!r) return;
+  initAudio(); sfx.click();
+  runId++; clearWorld(); resetPlayer(); resetRun();
+  if (r.arena && ARENAS[r.arena] && arenaUnlocked(r.arena) && r.arena !== arena) setArena(r.arena);
+  demo = false; state = 'playing'; cardsPending = false;
+  for (const k in r.up) if (UPG_BY[k]) up[k] = r.up[k];
+  recalcStats();
+  player.maxHp = r.maxHp || player.maxHp; player.hp = clamp(r.hp || player.maxHp, 1, player.maxHp); player.inv = 2;
+  player.shieldOn = L('escudo') > 0 || lvl('escudo') > 0;
+  setWeapon(r.weapon, true); runWeapons.clear(); for (const w of r.weapons || []) runWeapons.add(w); runWeapons.add(r.weapon);
+  runPicks.length = 0; runPicks.push(...(r.picks || []));
+  score = r.score | 0; kills = r.kills | 0; maxCombo = r.maxCombo | 0; bossesKilled.n = r.bosses | 0; combo = 0;
+  contUsed = r.cont | 0; banked.coins = (r.banked && r.banked.coins) | 0; banked.kills = (r.banked && r.banked.kills) | 0; runCounted = !!r.counted;
+  dashesUsed = r.dashes | 0; runHit = !!r.hit; lastHit = '';
+  for (const k in hud) hud[k] = k === 'pw' ? '' : -1;
+  camPos.set(0, 22, 14);
+  enterPlay();
+  startWave(r.wave, true);
+}
+function paintResume() {
+  const r = loadRun(), b = $('btn-retomar');
+  b.hidden = !r; $('tela-titulo').classList.toggle('has-resume', !!r); if (r) b.innerHTML = `⏯ Retomar partida (onda ${r.wave})<small>${fmt(r.score)} pontos · continua de onde parou</small>`;
+}
+function paintBest() {
+  const c = LS.get('cb-recorde-cont', '0') === '1' && best > 0;
+  for (const id of ['titulo-recorde', 'fim-melhor']) { const el = $(id); el.textContent = best.toLocaleString('pt-BR'); if (c) el.insertAdjacentHTML('beforeend', '<span class="cont-badge" title="Recorde feito usando continue">*com continue</span>'); }
 }
 function pauseGame() {
   if (state !== 'playing') return;
@@ -2327,7 +2390,7 @@ function toTitle() {
   sfx.click();
   runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0; wakeLock(false); wipe();
   $('hud').hidden = true; show('tela-titulo');
-  $('titulo-recorde').textContent = best.toLocaleString('pt-BR'); paintCoins(); paintArenaSel();
+  paintBest(); paintCoins(); paintArenaSel(); paintResume();
   musicIntensity(0); music(true); // trilha calma no menu
 }
 function countUp(el, to, ms) {
@@ -2381,7 +2444,12 @@ function showResults() {
   state = 'over'; wakeLock(false); paintSwap(null);
   const rec = score > best && score > 0;
   lastRun = { score, wave, rec };
-  if (rec) { best = score; try { localStorage.setItem('cb-recorde', String(best)); } catch (_) {} sfx.record(); } else sfx.over();
+  if (rec) { best = score; try { localStorage.setItem('cb-recorde', String(best)); } catch (_) {} LS.set('cb-recorde-cont', contUsed ? '1' : '0'); sfx.record(); } else sfx.over();
+  clearRun(); // partida terminou: nada para retomar
+  const cl = contMax() - contUsed, bc = $('btn-fim-cont');
+  bc.hidden = cl <= 0;
+  if (cl > 0) bc.innerHTML = `▶ CONTINUAR (onda ${wave})<small>${cl > 1 ? cl + ' restantes' : 'última chance'} · vida cheia, mantém poderes</small>`;
+  $('fim-cont').hidden = !contUsed;
   $('fim-titulo').textContent = wave >= 10 ? 'QUE BATALHA!' : 'FIM DE JOGO';
   $('fim-recorde').hidden = !rec;
   $('fim-dica').innerHTML = '<b>💡 Dica</b>' + deathTip();
@@ -2390,11 +2458,12 @@ function showResults() {
   $('fim-abates').textContent = kills;
   $('fim-chefes').textContent = bossesKilled.n;
   $('fim-combo').textContent = maxCombo;
-  $('fim-melhor').textContent = best.toLocaleString('pt-BR');
+  paintBest();
   $('fim-poderes').innerHTML = `<span class="ui">${WEAPONS[player.weapon].icon}</span>` + ownedHtml(false);
   // moedas e progresso permanente
-  const coins = runCoins(), unl0 = arenaUnlocked('porto');
-  meta.coins += coins; meta.earned += coins; meta.kills += kills; meta.runs++; meta.maxWave = Math.max(meta.maxWave, wave); saveMeta();
+  const total = runCoins(), coins = Math.max(0, total - banked.coins), unl0 = arenaUnlocked('porto');
+  meta.coins += coins; meta.earned += coins; meta.kills += Math.max(0, kills - banked.kills); if (!runCounted) meta.runs++; meta.maxWave = Math.max(meta.maxWave, wave); saveMeta();
+  banked.coins = Math.max(banked.coins, total); banked.kills = kills; runCounted = true;
   $('fim-moedas').innerHTML = `+<b id="fim-moedas-n">0</b> 🪙 <small>total ${fmt(meta.coins)}</small>`; countUp($('fim-moedas-n'), coins, 900);
   if (meta.kills >= 500) unlockAch('abates500');
   if (meta.earned >= 1000) unlockAch('poupanca');
@@ -2478,6 +2547,8 @@ $('btn-continuar').addEventListener('click', resumeGame);
 $('btn-reiniciar').addEventListener('click', startGame);
 $('btn-menu').addEventListener('click', toTitle);
 $('btn-denovo').addEventListener('click', startGame);
+$('btn-fim-cont').addEventListener('click', continueRun);
+$('btn-retomar').addEventListener('click', resumeRun);
 $('btn-fim-menu').addEventListener('click', toTitle);
 $('btn-share').addEventListener('click', () => { shareRecord(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
@@ -2662,14 +2733,14 @@ if (DEBUG) window.__CB = {
   setFace(i, f) { if (enemies[i]) enemies[i].face = f; }, hitEnemy(i, dmg, vx, vz) { const e = enemies[i]; if (!e) return null; if (shieldBlocks(e, vx, vz)) return 'bloqueado'; e.back = isBehind(e, vx, vz); damageEnemy(e, dmg, vx, vz); return e.dead ? 'morto' : 'ok'; }, splat(k) { splat(player.x + 2, player.z, k, 2); }, clearQueue() { spawnQueue.length = 0; }, keepOnly(ids) { enemies = enemies.filter((e) => ids.includes(e.id)); }, lastId: () => enemySeq, get eb() { return eBullets.list.length; }, tough() { for (const e of enemies) e.hp = e.maxHp = 1e6; }, freeze(on) { for (const e of enemies) e.speed = on ? 0.001 : TYPES[e.type].speed; },
   get p2() { return boss ? { p2: boss.p2, roar: +boss.roarT.toFixed(2), act: boss.act, hp: Math.round(boss.hp), max: boss.maxHp } : null; }, bossHalf() { if (boss) damageBoss(boss.hp - boss.maxHp * 0.49, true); }, bossHeal() { if (boss) boss.hp = boss.maxHp * 0.49; },
   get audio() { return { state: audioState(), level: musicLevel(), vol: getVolumes() }; }, get tip() { return deathTip(); }, get lastHit() { return lastHit; }, get ios() { return { IOS, canVibrate }; },
-  get heroScale() { return hero.g.scale.x; },
+  get heroScale() { return hero.g.scale.x; }, get heroVisible() { return hero.g.visible; }, get cont() { return { used: contUsed, max: contMax(), banked: { ...banked }, counted: runCounted }; }, continueRun, resumeRun, get saved() { return loadRun(); }, get waveState() { return waveState; }, get upNow() { return { ...up }; }, get hpInfo() { return { hp: player.hp, max: player.maxHp, inv: player.inv }; },
   get shakeMul() { return shakeMul; }, get wake() { return !!wakeSentinel; }, get flashCls() { return $("flash").className; }, get slow() { return { slowT, slowK }; }, get lastShare() { return shareText(); }, share: () => shareRecord(), get appV() { return APP_V; },
   dropAt(k, dx = 0, dz = 0) { dropItem(player.x + dx, player.z + dz, k); }, forceOver() { score = 12345; wave = 7; showResults(); },
 };
 
 paintSound(); iosHint();
 setArena(meta.arena); paintCoins(); paintArenaSel();
-$('titulo-recorde').textContent = best.toLocaleString('pt-BR');
+paintBest(); paintResume();
 applyTier();
 resetPlayer();
 // pré-compila chefe e itens (sem travada no 1º chefe / 1º item)

@@ -16,6 +16,7 @@ export const SHOP = [
   { id: 'esquiva', nome: 'Botas Leves', icon: '🥾', max: 2, custo: [70, 160], desc: (l) => `ESQUIVA recarrega ${l * 6}% mais rápido` },
   { id: 'moedas', nome: 'Cofrinho', icon: '🐷', max: 3, custo: [100, 210, 360], desc: (l) => `+${l * 10}% de moedas por partida` },
   { id: 'escudo', nome: 'Escudo Inicial', icon: '🛡️', max: 1, custo: [420], desc: () => 'Começa toda partida com 1 bloqueio de escudo' },
+  { id: 'segunda', nome: 'Segunda Chance', icon: '💖', max: 1, custo: [500], desc: () => '+1 CONTINUAR por partida (2 no total)' },
 ];
 export const ARENAS = {
   cidade: { nome: 'Praça Neon', icon: '🌃', req: 0, desc: 'A arena original, cercada de prédios.' },

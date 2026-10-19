@@ -102,6 +102,7 @@ async function chromiumRun() {
   check(m.coins > 0 && m.runs === 1, 'moedas da partida salvas', `${m.coins} moedas`);
   check(await E(() => !!JSON.parse(localStorage.getItem('cb-meta')).coins), 'progresso no localStorage');
   check(await E(() => document.getElementById('fim-dica').textContent.length > 12), 'dica no fim de jogo', await E(() => document.getElementById('fim-dica').textContent));
+  await continueChecks(page, E, waitFor, '');
 
   // loja
   await E(() => __CB.menu());
@@ -110,10 +111,40 @@ async function chromiumRun() {
   const mem = await E(() => __CB.mem());
   check(mem.geometries < 400 && mem.textures < 80, 'memória da GPU sob controle', JSON.stringify(mem));
   await volumeChecks(E);
+  await resumeChecks(page, E, waitFor, '');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
   } catch (e) {
     console.error(e); fails++;
   } finally { await browser.close(); }
+}
+
+// CONTINUAR: recomeça a onda com vida cheia; só 1 por partida; moedas não contam 2x
+async function continueChecks(page, E, waitFor, tag) {
+  const w = await E(() => __CB.wave), m1 = await E(() => __CB.meta);
+  check(await E(() => !document.getElementById('btn-fim-cont').hidden && /onda \d+/.test(document.getElementById('btn-fim-cont').textContent)), tag + 'botão CONTINUAR no fim de jogo');
+  await page.tap('#btn-fim-cont');
+  check(await waitFor(() => __CB.state === 'playing'), tag + 'continuar volta à partida');
+  const a = await E(() => ({ wave: __CB.wave, hp: __CB.hpInfo, cont: __CB.cont }));
+  check(a.wave === w && a.hp.hp === a.hp.max && a.hp.inv > 1.5, tag + 'mesma onda, vida cheia e invencível por um instante', JSON.stringify(a));
+  await E(() => { window.__CBgod = false; __CB.hurt(9999); });
+  await waitFor(() => __CB.state === 'over', 30000);
+  const m2 = await E(() => __CB.meta);
+  check(await E(() => document.getElementById('btn-fim-cont').hidden && !document.getElementById('fim-cont').hidden), tag + 'segunda morte sem continue (e marcada "com continue")');
+  check(m2.runs === m1.runs && m2.coins >= m1.coins, tag + 'moedas e partidas sem contar duas vezes', `partidas ${m1.runs}→${m2.runs}, moedas ${m1.coins}→${m2.coins}`);
+}
+// RETOMAR: partida salva no início da onda volta depois de recarregar a página
+async function resumeChecks(page, E, waitFor, tag) {
+  await E(() => __CB.menu()); await waitFor(() => __CB.state === 'title');
+  await page.tap('#btn-jogar'); await waitFor(() => __CB.state === 'playing');
+  await E(() => { window.__CBgod = true; __CB.skipTo(3); });
+  await sleep(400);
+  await page.reload(); await waitFor(() => window.__CB && __CB.state === 'title');
+  check(await E(() => !document.getElementById('btn-retomar').hidden && /onda 3/.test(document.getElementById('btn-retomar').textContent)), tag + 'título oferece "Retomar partida (onda 3)" após recarregar');
+  await page.tap('#btn-retomar');
+  check(await waitFor(() => __CB.state === 'playing' && __CB.wave === 3), tag + 'retomar volta para a onda 3');
+  await E(() => { window.__CBgod = false; __CB.hurt(9999); }); await waitFor(() => __CB.state === 'over', 30000);
+  await E(() => __CB.menu()); await waitFor(() => __CB.state === 'title');
+  check(await E(() => document.getElementById('btn-retomar').hidden), tag + 'depois do fim de jogo não há o que retomar');
 }
 
 async function volumeChecks(E) {
@@ -153,7 +184,9 @@ async function webkitRun() {
     check(await E(() => __CB.p2 && __CB.p2.p2), '[webkit] fase 2 do chefe');
     await E(() => { window.__CBgod = false; __CB.hurt(9999); });
     check(await waitFor(() => __CB.state === 'over', 30000), '[webkit] fim de jogo');
+    await continueChecks(page, E, waitFor, '[webkit] ');
     await volumeChecks(E);
+    await resumeChecks(page, E, waitFor, '[webkit] ');
     await page.screenshot({ path: path.join(OUT, 'webkit-config.png') });
     check(errors.length === 0, '[webkit] sem erros no console', errors.slice(0, 3).join(' | '));
   } catch (e) { console.error(e); fails++; } finally { await browser.close(); }

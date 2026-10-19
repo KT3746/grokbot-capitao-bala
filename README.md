@@ -2,7 +2,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192130
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192200
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
@@ -18,7 +18,7 @@ Toda a arte é original e gerada por código (modelos em `js/models.js`, textura
 
 ## Teste automático
 
-Teste de fumaça com Playwright (abre o jogo num Chrome sem janela e passa pelo fluxo principal: título, partida, objetivo, inimigos novos, escudo, cartas, armas, chefe com cinemática e fase 2, arena 2, fim de jogo com dica, moedas salvas, loja e volumes; e, se o WebKit estiver instalado, uma passada iPhone com toque, áudio, PWA e falta de vibração):
+Teste de fumaça com Playwright (abre o jogo num Chrome sem janela e passa pelo fluxo principal: título, partida, objetivo, inimigos novos, escudo, cartas, armas, chefe com cinemática e fase 2, arena 2, fim de jogo com dica, continuar e retomar partida, moedas salvas, loja e volumes; e, se o WebKit estiver instalado, uma passada iPhone com toque, áudio, PWA e falta de vibração):
 
 ```bash
 npm install          # instala só o playwright-core (sem baixar navegador)
@@ -29,6 +29,19 @@ npx playwright-core install webkit   # opcional: adiciona a passada iPhone/Safar
 Não precisa de servidor: o script sobe um servidor local sozinho. Uma captura da arena 2 fica em `tests/out/`.
 
 ## Novidades
+
+### v7.1 (19/10/2026)
+- **CONTINUAR depois de morrer**: no fim de jogo, o botão verde **CONTINUAR (onda N)** aparece acima de "Jogar de novo".
+  - A onda em que você morreu recomeça do zero, sem os inimigos e tiros que estavam na tela.
+  - Você mantém pontos, poderes, arma e moedas, volta com a vida cheia e fica alguns segundos invencível (o herói pisca).
+  - Na onda de chefe, ele volta com a vida cheia e na fase 1, sem repetir a cinemática longa.
+  - É **1 continue por partida**. A melhoria permanente **Segunda Chance** (💖, 500 moedas na Loja) dá mais 1.
+  - Moedas, abates e partidas não são contados duas vezes.
+  - O recorde feito com continue continua valendo, mas aparece com a marca "*com continue".
+- **Retomar partida**: a partida é salva no aparelho no começo de cada onda.
+  - Se o app fechar no meio do jogo, o título mostra **Retomar partida (onda N)** e volta ao começo daquela onda, com poderes e pontos.
+  - Começar um jogo novo ou chegar ao fim de jogo apaga o que estava salvo.
+- O teste de fumaça agora cobre o continue, o limite de 1 por partida e o retomar depois de recarregar a página, no Chromium e no WebKit.
 
 ### v7 (19/10/2026)
 - **Câmera e herói**: o Capitão Bala ficou menor na tela e a câmera mostra mais da arena, como nos jogos do gênero (Archero, Vampire Survivors).
