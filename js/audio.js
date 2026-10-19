@@ -67,6 +67,7 @@ export const sfx = {
   enemyShot() { tone('sawtooth', 300, 120, 0.12, 0.06); },
   click() { tone('square', 660, 880, 0.05, 0.08); },
   over() { [392, 330, 262, 196].forEach((f, i) => tone('triangle', f, f * 0.98, 0.35, 0.2, i * 0.22)); },
+  heartbeat() { if (!ctx) return; tone('sine', 78, 42, 0.16, 0.55); tone('sine', 70, 38, 0.2, 0.42, 0.2); noise(0.06, 0.08, 220, 1, 'lowpass'); },
   record() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.1)); },
 };
 

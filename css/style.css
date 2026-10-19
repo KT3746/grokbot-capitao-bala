@@ -84,3 +84,51 @@ body.no-touch .touch-only{display:none}
 .edge-arrow.boss i{left:-20px;top:-17px;border-top-width:17px;border-bottom-width:17px;border-left-width:38px;transform-origin:20px 17px;animation:bossarrow .5s infinite alternate}
 .edge-arrow.boss b{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:11px;font-weight:900;letter-spacing:.1em;color:#fff;background:#b00;border:2px solid #ff8a8a;border-radius:8px;padding:1px 5px;white-space:nowrap}
 @keyframes bossarrow{to{filter:drop-shadow(0 0 12px #f00) drop-shadow(0 1px 1px #000)}}
+/* v3: menu, configurações, tutorial, feedback */
+.menu-row{display:flex;gap:10px}.menu-row .btn{flex:1;padding:13px 8px;font-size:15px}
+.cfg-row{display:flex;flex-direction:column;gap:8px}
+.cfg-row>span{font-size:14px;font-weight:800;letter-spacing:.06em;color:#9fdcff}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(0,0,0,.3);padding:5px;border-radius:14px}
+.seg4{grid-template-columns:repeat(4,1fr)}
+.seg button{font:inherit;font-weight:800;font-size:15px;color:#cfe3ff;background:transparent;border:0;border-radius:10px;padding:12px 4px;cursor:pointer;touch-action:manipulation}
+.seg button.on{background:linear-gradient(180deg,#ffb627,#ff6a1f);color:#2a0d00;box-shadow:0 3px 0 #a33a00}
+.cfg-info{font-size:13px;color:#9fb6d9;line-height:1.35;min-height:2.6em}
+.tut{position:relative;align-items:stretch;text-align:center}
+.tut-skip{position:absolute;top:12px;right:12px;font:inherit;font-weight:800;font-size:14px;color:#cfe3ff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px 12px;cursor:pointer}
+.tut h2{margin-top:6px}
+.tut-txt{font-size:17px;line-height:1.45;color:#dbe8ff;min-height:5.2em}
+.tut-dots{display:flex;justify-content:center;gap:8px}.tut-dots i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.25)}.tut-dots i.on{background:#ffb627;box-shadow:0 0 8px #ffb627}
+.tut-art{display:flex;justify-content:center;margin-top:26px}
+.tut-art .ph{position:relative;width:150px;height:200px;border-radius:22px;border:3px solid rgba(160,210,255,.6);background:radial-gradient(circle at 50% 45%,#1d2a4a,#0a1022);overflow:hidden}
+.tut-art .ph>i{position:absolute;display:none}
+.tut-art .hero{left:63px;top:86px;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#7fd8ff,#1f4fc4);box-shadow:0 0 0 3px #ff8a1f,0 0 14px #2ad4ff;display:block!important}
+.tut-art .joy{left:14px;top:126px;width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.45)}
+.tut-art .thumb{left:30px;top:142px;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#7fd8ff 50%,#1f7cff)}
+.tut-art .z1,.tut-art .z2{width:16px;height:16px;border-radius:4px;background:#7fae5a;box-shadow:0 0 8px #8dff5a}
+.tut-art .z1{left:110px;top:30px}.tut-art .z2{left:20px;top:40px;background:#c3cddd;box-shadow:0 0 8px #3ae8ff}
+.tut-art .dashb{right:10px;bottom:10px;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 40% 30%,rgba(120,220,255,.8),rgba(20,80,180,.8));border:2px solid #fff;font-style:normal;font-size:20px;line-height:42px;text-align:center}
+.tut-art .key{left:0;right:0;bottom:16px;font-style:normal;font-weight:900;letter-spacing:.2em;color:#ffd76a;font-size:15px}
+.tut-art .item{width:18px;height:18px;border-radius:50%;top:40px}.tut-art .i1{left:24px;background:#ff8a1f;box-shadow:0 0 10px #ff8a1f}.tut-art .i2{left:66px;background:#2ad4ff;box-shadow:0 0 10px #2ad4ff}.tut-art .i3{left:108px;background:#38e07b;box-shadow:0 0 10px #38e07b}
+.art-move .joy,.art-move .thumb,.art-move .z1{display:block!important}.art-move .thumb{animation:tthumb 1.6s ease-in-out infinite}.art-move .hero{animation:thero 1.6s ease-in-out infinite}
+@keyframes tthumb{0%,100%{transform:none}30%{transform:translate(14px,-12px)}65%{transform:translate(-12px,8px)}}
+@keyframes thero{0%,100%{transform:none}30%{transform:translate(18px,-16px)}65%{transform:translate(-16px,10px)}}
+.art-fire .z1,.art-fire .z2{display:block!important;animation:tz 1s infinite}.art-fire .ph::after{content:'';position:absolute;left:75px;top:96px;width:4px;height:12px;background:#ffd76a;box-shadow:0 0 8px #ffb627;border-radius:2px;transform-origin:2px 0;animation:tshot .5s linear infinite}
+@keyframes tshot{from{transform:rotate(-140deg) translateY(0);opacity:1}to{transform:rotate(-140deg) translateY(70px);opacity:0}}
+@keyframes tz{50%{filter:brightness(2.5)}}
+.art-dash .dashb{display:block!important;animation:tdash 1.2s infinite}.art-dash .hero{animation:thdash 1.2s infinite}
+@keyframes tdash{0%,40%,100%{transform:none}50%{transform:scale(.85);box-shadow:0 0 18px #7fd8ff}}
+@keyframes thdash{0%,45%{transform:none;opacity:1}60%{transform:translate(-34px,-10px);opacity:.5}100%{transform:translate(-34px,-10px)}}
+.art-keys .key,.art-keys .z1{display:block!important}.art-keys .hero{animation:thero 1.6s ease-in-out infinite}
+.art-items .item{display:block!important;animation:tz 1.2s infinite}.art-items .ph::before{content:'CHEFE!';position:absolute;left:0;right:0;bottom:24px;font-weight:900;font-style:italic;color:#ff6a6a;text-shadow:0 0 10px #f00;font-size:22px}
+.hit-arc{position:absolute;left:0;top:0;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;border:13px solid transparent;border-top-color:rgba(255,40,40,.95);filter:drop-shadow(0 0 10px #ff1a1a);will-change:transform,opacity;pointer-events:none}
+#low-vignette{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(200,0,0,.55) 85%,rgba(140,0,0,.8));transition:opacity .3s}
+#low-vignette.on{opacity:1;animation:lowpulse var(--hb,.8s) ease-in-out infinite}
+@keyframes lowpulse{0%,100%{opacity:.45}25%{opacity:1}}
+/* retrato: HUD do chefe compacto, chips/combo descem abaixo da barra */
+@media (orientation:portrait){
+  #boss-wrap{top:calc(70px + env(safe-area-inset-top));width:min(520px,92vw)}
+  #boss-name{font-size:11px;letter-spacing:.15em}
+  .boss-bar{height:9px;margin-top:2px}
+  body.has-boss #hud-power{top:calc(104px + env(safe-area-inset-top))}
+  body.has-boss #hud-combo{top:calc(104px + env(safe-area-inset-top))}
+}

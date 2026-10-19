@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <title>CAPITÃO BALA</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="css/style.css?v=202610191530" />
+<link rel="stylesheet" href="css/style.css?v=202610191545" />
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js", "three/addons/": "./js/vendor/addons/" } }
 </script>
@@ -31,6 +31,7 @@
   <div id="aim-base" hidden><div id="aim-knob"></div></div>
   <button id="btn-dash" class="big-btn touch-only" aria-label="Esquiva">💨<span>ESQUIVA</span></button>
   <div id="hurt-vignette"></div>
+  <div id="low-vignette"></div>
 </div>
 
 <!-- Título -->
@@ -43,23 +44,39 @@
   <div class="menu">
     <button id="btn-jogar" class="btn btn-primary">▶ JOGAR</button>
     <button id="btn-como" class="btn btn-ghost">Como jogar</button>
-    <button id="btn-som" class="btn btn-ghost small">🔊 Som: ligado</button>
+    <div class="menu-row">
+      <button id="btn-config" class="btn btn-ghost small">⚙ Configurações</button>
+      <button id="btn-som" class="btn btn-ghost small">🔊 Som: ligado</button>
+    </div>
   </div>
   <div class="recorde">Recorde: <b id="titulo-recorde">0</b></div>
 </section>
 
-<section id="tela-como" class="screen panel-screen" hidden>
+<section id="tela-tutorial" class="screen panel-screen" hidden>
+  <div class="panel tut">
+    <button id="tut-pular" class="tut-skip" aria-label="Pular tutorial">Pular ✕</button>
+    <div id="tut-art" class="tut-art" aria-hidden="true"><div class="ph"><i class="z1"></i><i class="z2"></i><i class="hero"></i><i class="joy"></i><i class="thumb"></i><i class="dashb">💨</i><i class="key">W A S D</i><i class="item i1"></i><i class="item i2"></i><i class="item i3"></i></div></div>
+    <h2 id="tut-titulo">Como jogar</h2>
+    <p id="tut-txt" class="tut-txt"></p>
+    <div id="tut-dots" class="tut-dots"></div>
+    <button id="tut-prox" class="btn btn-primary">Próximo ▶</button>
+  </div>
+</section>
+
+<section id="tela-config" class="screen panel-screen" hidden>
   <div class="panel">
-    <h2>Como jogar</h2>
-    <ul class="how">
-      <li><b>Celular:</b> arraste o dedo no lado <b>esquerdo</b> para andar. O Capitão atira <b>sozinho</b> no inimigo mais perto.</li>
-      <li>Quer mirar? Arraste no lado <b>direito</b> da tela.</li>
-      <li>Botão <b>ESQUIVA</b>: dá um pulo rápido e fica invencível por um instante.</li>
-      <li><b>PC:</b> WASD ou setas para andar, mouse para mirar (segure o clique), <b>Espaço</b> para esquiva, <b>P</b> ou <b>Esc</b> para pausar.</li>
-      <li>Itens: <span class="pw o">ESPINGARDA</span> tiro espalhado · <span class="pw c">TIRO RÁPIDO</span> · <span class="pw g">VIDA</span></li>
-      <li>A cada <b>5 ondas</b> aparece um <b>CHEFE</b> gigante!</li>
-    </ul>
-    <button id="btn-como-ok" class="btn btn-primary">Entendi!</button>
+    <h2>Configurações</h2>
+    <div class="cfg-row"><span>Qualidade gráfica</span>
+      <div class="seg seg4" id="seg-qual"><button data-q="auto">Auto</button><button data-q="0">Baixa</button><button data-q="1">Média</button><button data-q="2">Alta</button></div>
+    </div>
+    <div id="cfg-info" class="cfg-info"></div>
+    <div class="cfg-row"><span>Vibração</span>
+      <div class="seg" id="seg-vib"><button data-v="1">Ligada</button><button data-v="0">Desligada</button></div>
+    </div>
+    <div class="cfg-row"><span>Som</span>
+      <div class="seg" id="seg-som"><button data-s="1">Ligado</button><button data-s="0">Desligado</button></div>
+    </div>
+    <button id="btn-config-ok" class="btn btn-primary">Voltar</button>
   </div>
 </section>
 
@@ -69,6 +86,7 @@
     <button id="btn-continuar" class="btn btn-primary">▶ Continuar</button>
     <button id="btn-reiniciar" class="btn btn-ghost">↻ Reiniciar</button>
     <button id="btn-som2" class="btn btn-ghost small">🔊 Som: ligado</button>
+    <button id="btn-config2" class="btn btn-ghost small">⚙ Configurações</button>
     <button id="btn-menu" class="btn btn-ghost small">Menu inicial</button>
   </div>
 </section>
@@ -92,6 +110,6 @@
 
 <div id="loading">Carregando arena…</div>
 <div id="erro" hidden></div>
-<script type="module" src="js/main.js?v=202610191530"></script>
+<script type="module" src="js/main.js?v=202610191545"></script>
 </body>
 </html>

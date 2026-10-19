@@ -5,14 +5,16 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted } from './audio.js?v=202610191530';
+import { initAudio, sfx, music, setMuted, isMuted } from './audio.js?v=202610191545';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 let touchMode = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 if (!touchMode) document.body.classList.add('no-touch');
-const vibrate = (p) => { try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {} };
+const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (_) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} } };
+let vibOn = LS.get('cb-vibrar', '1') !== '0';
+const vibrate = (p) => { if (!vibOn) return; try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {} };
 
 // ---------------- Renderer + qualidade adaptativa ----------------
 const canvas = $('cena');
@@ -29,14 +31,45 @@ renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = touchMode ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 
+// pr = teto de pixelRatio no PC; prM = teto no celular (Galaxy tem DPR 2.6–3.5: renderizar tudo isso não compensa)
 const TIERS = [
-  { name: 'baixa', pr: 0.9, shadow: 0, bloom: 0 },
-  { name: 'media', pr: 1.35, shadow: 1024, bloom: 0.5 },
-  { name: 'alta', pr: 2, shadow: 2048, bloom: 1 },
+  { name: 'baixa', label: 'Baixa', pr: 0.9, prM: 1.0, shadow: 0, bloom: 0 },
+  { name: 'media', label: 'Média', pr: 1.35, prM: 1.4, shadow: 1024, bloom: 0.6 },
+  { name: 'alta', label: 'Alta', pr: 2, prM: 1.8, shadow: 2048, bloom: 1 },
 ];
-let tierIdx = touchMode ? 1 : 2;
+// ---- detecção do aparelho (memória, núcleos, GPU) ----
+const DEV = (() => {
+  const mem = navigator.deviceMemory || 0, cores = navigator.hardwareConcurrency || 0;
+  let gpu = '';
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) || '');
+  } catch (_) {}
+  const g = gpu.toLowerCase();
+  let cls = 'mid';
+  const adreno = +(g.match(/adreno[^0-9]*(\d{3})/) || [])[1] || 0;
+  const mali = g.match(/mali-([gt])(\d+)/);
+  const maliN = mali ? +mali[2] : 0;
+  if (/swiftshader|llvmpipe|software|powervr|mali-t|mali-4|mali-g(31|51|52|57)\b|adreno[^0-9]*[2-5]\d\d/.test(g)) cls = 'low';
+  else if (/xclipse|immortalis/.test(g) || adreno >= 730 || (mali && mali[1] === 'g' && maliN >= 710)) cls = 'high';
+  else if (adreno >= 640 || (mali && maliN >= 68)) cls = 'mid';
+  if ((mem && mem <= 3) || (cores && cores <= 4)) cls = 'low';
+  else if (cls === 'high' && mem && mem < 6) cls = 'mid';
+  return { mem, cores, gpu, cls };
+})();
 const qp = new URLSearchParams(location.search).get('q');
-if (qp && /^[012]$/.test(qp)) tierIdx = +qp;
+const qpOk = !!(qp && /^[012]$/.test(qp));
+let qualPref = LS.get('cb-qualidade', 'auto'); if (!/^(auto|[012])$/.test(qualPref)) qualPref = 'auto';
+const isAuto = () => !qpOk && qualPref === 'auto';
+function autoStartTier() {
+  if (!touchMode) return DEV.cls === 'low' ? 1 : 2;
+  return DEV.cls === 'low' ? 0 : 1; // celular: alto/médio começam em Média (médio sem sombra), fraco em Baixa
+}
+function autoMaxTier() { return touchMode ? 1 : 2; }
+function prefTier() { return qpOk ? +qp : qualPref === 'auto' ? autoStartTier() : +qualPref; }
+let tierIdx = prefTier();
+let maxTier = isAuto() ? autoMaxTier() : tierIdx;
 let bloomScale = 1;
 const ZOOM = +(new URLSearchParams(location.search).get('zoom') || 1);
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
@@ -49,7 +82,7 @@ const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 220);
 const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: touchMode ? 0 : 4 });
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.45, 1.05);
+const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.22, 1.05); // raio menor: halos redondos, sem 'quadrados' das mips baixas
 const bloomSetSize = bloom.setSize.bind(bloom);
 bloom.setSize = (w, h) => bloomSetSize(Math.max(32, Math.round(w * bloomScale)), Math.max(32, Math.round(h * bloomScale)));
 composer.addPass(bloom);
@@ -76,10 +109,11 @@ let boomI = 0;
 
 function applyTier() {
   const t = TIERS[tierIdx];
-  const pr = Math.min(window.devicePixelRatio || 1, t.pr);
+  let pr = Math.min(window.devicePixelRatio || 1, touchMode ? t.prM : t.pr);
+  if (touchMode && DEV.cls === 'low') pr = Math.min(pr, tierIdx === 0 ? 0.85 : 1.2);
   renderer.setPixelRatio(pr);
   composer.setPixelRatio(pr);
-  const sh = t.shadow > 0;
+  const sh = t.shadow > 0 && !(isAuto() && touchMode && DEV.cls !== 'high' && tierIdx === 1); // médio no automático: sem sombras
   sun.castShadow = sh;
   if (sh && sun.shadow.mapSize.x !== t.shadow) {
     sun.shadow.mapSize.set(t.shadow, t.shadow);
@@ -101,6 +135,7 @@ function resize() {
   camera.updateProjectionMatrix();
   partScale = (h * renderer.getPixelRatio()) / (2 * Math.tan((camera.fov * Math.PI) / 360));
   if (particleMat) particleMat.uniforms.uScale.value = partScale;
+  if (typeof measureHud === 'function') requestAnimationFrame(measureHud);
 }
 window.addEventListener('resize', resize);
 
@@ -129,7 +164,7 @@ function instMaterial(opts = {}) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmis = emis;\nvFlash = iFlash;');
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vEmis;\nvarying float vFlash;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmis + vec3(vFlash * 1.6, vFlash * 1.4, vFlash * 1.2);');
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmis + vec3(vFlash * 2.8, vFlash * 2.7, vFlash * 2.5);');
   };
   m.customProgramCacheKey = () => 'cb-inst';
   return m;
@@ -403,8 +438,8 @@ function bulletPool(geo, color, max) {
   mesh.frustumCulled = false; mesh.count = 0; scene.add(mesh);
   return { mesh, list: [], max };
 }
-const pBullets = bulletPool(new THREE.BoxGeometry(0.13, 0.13, 0.8), new THREE.Color(5, 3.4, 1.0), 260);
-const eBullets = bulletPool(new THREE.SphereGeometry(0.24, 10, 8), new THREE.Color(4.5, 0.5, 2.8), 260);
+const pBullets = bulletPool(new THREE.BoxGeometry(0.13, 0.13, 0.8), new THREE.Color(2.8, 1.9, 0.6), 260);
+const eBullets = bulletPool(new THREE.SphereGeometry(0.24, 10, 8), new THREE.Color(2.6, 0.35, 1.7), 260);
 { // halo aditivo (substitui o bloom na qualidade baixa)
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -510,8 +545,9 @@ function updateDebris(dt) {
 
 // ---------------- Ondas de choque (anéis) ----------------
 const rings = [];
+const ringGeo = new THREE.RingGeometry(0.8, 1, 40); // uma geometria para todas as ondas de choque
 for (let i = 0; i < 10; i++) {
-  const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   m.rotation.x = -Math.PI / 2; m.visible = false; scene.add(m);
   rings.push({ m, t: 0, dur: 0.4, max: 3 });
 }
@@ -688,7 +724,8 @@ window.addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (state === 'playing' && (e.code === 'Space' || e.code === 'ShiftLeft')) { dash(); e.preventDefault(); }
   if (e.code === 'KeyP' || e.code === 'Escape') { if (state === 'playing') pauseGame(); else if (state === 'paused') resumeGame(); }
-  if (e.code === 'Enter' && state === 'title' && $('tela-como').hidden) startGame();
+  if (e.code === 'Enter' && state === 'title' && !$('tela-titulo').hidden) startGame();
+  if (e.code === 'Escape' && !$('tela-tutorial').hidden) closeTutorial();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -763,6 +800,7 @@ function damageEnemy(e, dmg, dx, dz) {
   const crit = Math.random() < 0.1;
   if (crit) dmg *= 2;
   e.hp -= dmg; e.flash = 1;
+  for (let k = 0; k < 3; k++) emit(e.x - dx * 0.012, 1.3, e.z - dz * 0.012, rand(-3, 3), rand(1, 4), rand(-3, 3), [4, 4, 4], 0.14, 0.32, 0.04, 0, 3); // faísca branca
   const kb = e.type === 'tank' ? 1.2 : 4.5;
   const l = Math.hypot(dx, dz) || 1; e.kx += (dx / l) * kb; e.kz += (dz / l) * kb;
   const T = TYPES[e.type];
@@ -802,6 +840,8 @@ function hurtPlayer(dmg, sx, sz) {
   player.hp = Math.max(0, player.hp - dmg);
   player.inv = 0.9; player.flashT = 0.25;
   shake = Math.min(1, shake + 0.5);
+  hitstop = Math.max(hitstop, player.hp <= 0 ? 0.12 : 0.07); // hit-stop no golpe
+  showHitDir(sx, sz);
   vibrate(player.hp <= 0 ? [120, 60, 240] : 70);
   sfx.hurt();
   dmgNum(player.x, 2.6, player.z, '-' + dmg, '');
@@ -895,7 +935,7 @@ function spawnBoss(bi) {
   if (Math.hypot(player.x, player.z + 14) < 8) boss.z = 14;
   boss.g.position.set(boss.x, -6, boss.z);
   scene.add(boss.g);
-  $('boss-name').textContent = boss.name; $('boss-wrap').hidden = false;
+  $('boss-name').textContent = boss.name; $('boss-wrap').hidden = false; document.body.classList.add('has-boss'); measureHud();
 }
 function enemyShot(x, z, ang, sp) {
   if (eBullets.list.length >= eBullets.max) return;
@@ -992,7 +1032,7 @@ function killBoss() {
   addDebris(b.x, 3, b.z, 0x4b5263, 30, 12, 0.45);
   addDebris(b.x, 3, b.z, 0x8a1010, 14, 12, 0.35);
   scene.remove(b.g);
-  $('boss-wrap').hidden = true;
+  $('boss-wrap').hidden = true; document.body.classList.remove('has-boss');
   dropItem(b.x - 1.5, b.z, 'health'); dropItem(b.x + 1.5, b.z, Math.random() < 0.5 ? 'shotgun' : 'rapid');
   showBanner('CHEFE DERROTADO!<small>+' + 5000 * b.bi + ' pontos</small>');
 }
@@ -1066,13 +1106,14 @@ function updatePlayer(dt) {
   hero.glowRing.material.color.setRGB(player.shotgun > 0 ? 3 : 0.3, player.shotgun > 0 ? 1.4 : 1.6, player.shotgun > 0 ? 0.3 : 3);
   hero.g.visible = demo || player.inv <= 0 || Math.floor(player.inv * 16) % 2 === 0;
   const f = player.flashT * 4;
-  for (const m of hero.mats) m.emissive.setRGB(f * 1.5, f * 0.2, f * 0.1);
+  if (player.flashT > 0.17) for (const m of hero.mats) m.emissive.setRGB(2.4, 2.4, 2.4); // clarão branco
+  else for (const m of hero.mats) m.emissive.setRGB(f * 1.5, f * 0.2, f * 0.1);
 }
 function updateEnemies(dt) {
   const n = enemies.length;
   for (let i = 0; i < n; i++) {
     const e = enemies[i];
-    e.t += dt; e.flash = Math.max(0, e.flash - dt * 7);
+    e.t += dt; e.flash = Math.max(0, e.flash - dt * 9);
     if (e.spawn > 0) { e.spawn -= dt; continue; }
     const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz) || 1;
     let tx = dx / d, tz = dz / d, sp = e.speed;
@@ -1132,7 +1173,7 @@ function updateEnemies(dt) {
     else { y = Math.random() * 0.03; }
     dummy.position.set(e.x, y - (1 - s) * 1.5, e.z);
     dummy.rotation.set(rx, e.face, rz, 'YXZ');
-    dummy.scale.set(s, s * (1 + e.flash * 0.12), s);
+    dummy.scale.set(s * (1 + e.flash * 0.08), s * (1 + e.flash * 0.14), s * (1 + e.flash * 0.08));
     dummy.updateMatrix();
     T.mesh.setMatrixAt(i, dummy.matrix);
     T.flashAttr.array[i] = e.flash;
@@ -1220,12 +1261,15 @@ function updateWaves(dt) {
     sfx.power();
   }
 }
+let bossZoom = 1;
 const viewExt = { w: 10, top: 12, bot: 7, ok: false }; // extensão visível do chão em volta do ponto de mira da câmera
 function updateCamera(dt, rdt) {
   const a = camera.aspect, t = Math.tan((camera.fov * Math.PI) / 360);
   const portrait = a < 1;
   // retrato: câmera mais alta e mais inclinada, mostrando ~7 m para cada lado do herói
-  const D = (portrait ? clamp(7 / (t * a), 18, 30) : clamp(Math.max(9.5 / (t * a), 7.6 / t), 13, 27)) * ZOOM;
+  // luta de chefe: afasta um pouco a câmera para caber chefe + herói
+  bossZoom += ((boss && state !== 'title' ? (portrait ? 1.08 : 1.2) : 1) - bossZoom) * Math.min(1, rdt * 2);
+  const D = (portrait ? clamp(7 / (t * a), 18, 30) : clamp(Math.max(9.5 / (t * a), 7.6 / t), 13, 27)) * ZOOM * bossZoom;
   const pitch = portrait ? 1.22 : 1.0;
   let lx = player.x, lz = player.z;
   if (state === 'title' || demo) {
@@ -1253,7 +1297,14 @@ function updateCamera(dt, rdt) {
     let zMin = -E + viewExt.top, zMax = E - viewExt.bot;
     if (zMin > zMax) zMin = zMax = (zMin + zMax) / 2;
     lz = clamp(lz, zMin, zMax);
-    lz = clamp(lz, player.z - viewExt.bot * 0.55, player.z + viewExt.top * 0.5);
+    // chefe não pode ficar escondido debaixo do HUD: limita o quanto ele fica "para cima" na tela
+    if (boss) {
+      const h = window.innerHeight, yMin = hudM.boss + (portrait ? 150 : 85);
+      const ndc = clamp(1 - (2 * yMin) / h, -0.6, 0.95);
+      const ang = pitch - Math.atan(ndc * Math.tan(hv));
+      if (ang > 0.05) { const dAhead = H / Math.tan(ang) - back; lz = Math.min(lz, boss.z + dAhead); }
+    }
+    lz = clamp(lz, player.z - viewExt.bot * (boss ? 0.72 : 0.55), player.z + viewExt.top * 0.5);
     const tx = lx, ty = H, tz = lz + back;
     const k = 1 - Math.exp(-rdt * 7);
     camPos.x += (tx - camPos.x) * k; camPos.y += (ty - camPos.y) * k; camPos.z += (tz - camPos.z) * k;
@@ -1285,7 +1336,7 @@ const _cand = [];
 function placeArrow(A, x, y, z, color, near) {
   _p.set(x, y, z).project(camera);
   const w = window.innerWidth, h = window.innerHeight;
-  const topM = boss ? 178 : 92, botM = 26, sideM = 20; // abaixo da barra do chefe
+  const topM = (boss ? hudM.boss : hudM.top) + 22, botM = 26, sideM = 20; // abaixo do HUD/barra do chefe
   let sx = (_p.x * 0.5 + 0.5) * w, sy = (-_p.y * 0.5 + 0.5) * h;
   const behind = _p.z > 1;
   if (!behind && sx > sideM && sx < w - sideM && sy > topM && sy < h - botM) return false; // visível
@@ -1320,6 +1371,56 @@ function updateArrows() {
   else hideArrow(bossArrow);
 }
 
+// ---------------- Medidas do HUD (para câmera e setas) ----------------
+const hudM = { top: 70, boss: 150 };
+function measureHud() {
+  if ($('hud').hidden) return;
+  const t = document.querySelector('.hud-top').getBoundingClientRect();
+  hudM.top = t.bottom;
+  const bw = $('boss-wrap');
+  if (!bw.hidden) hudM.boss = Math.max(t.bottom, bw.getBoundingClientRect().bottom);
+  else hudM.boss = t.bottom + 50;
+}
+
+// ---------------- Indicador de direção do dano ----------------
+const hitArcs = [];
+for (let i = 0; i < 4; i++) { const el = document.createElement('div'); el.className = 'hit-arc'; el.style.opacity = '0'; $('hud').insertBefore(el, $('btn-dash')); hitArcs.push({ el, life: 0, x: 0, z: 0 }); }
+let hitArcI = 0;
+function showHitDir(sx, sz) {
+  const A = hitArcs[hitArcI]; hitArcI = (hitArcI + 1) % hitArcs.length;
+  A.life = 0.75; A.x = sx; A.z = sz;
+}
+const _hp2 = new THREE.Vector3();
+function updateHitArcs(rdt) {
+  let heroS = null;
+  for (const A of hitArcs) {
+    if (A.life <= 0) continue;
+    A.life -= rdt;
+    if (A.life <= 0 || state !== 'playing') { A.life = 0; A.el.style.opacity = '0'; continue; }
+    if (!heroS) { _p.set(player.x, 1.2, player.z).project(camera); heroS = [(_p.x * 0.5 + 0.5) * innerWidth, (-_p.y * 0.5 + 0.5) * innerHeight]; }
+    // direção na tela: do herói para a origem do golpe
+    let dx = A.x - player.x, dz = A.z - player.z; const L = Math.hypot(dx, dz) || 1;
+    _hp2.set(player.x + (dx / L) * 3, 1.2, player.z + (dz / L) * 3).project(camera);
+    const ax = (_hp2.x * 0.5 + 0.5) * innerWidth - heroS[0], ay = (-_hp2.y * 0.5 + 0.5) * innerHeight - heroS[1];
+    const ang = Math.atan2(ay, ax) + Math.PI / 2;
+    const k = A.life / 0.75;
+    A.el.style.transform = `translate(${heroS[0].toFixed(1)}px,${heroS[1].toFixed(1)}px) rotate(${ang.toFixed(3)}rad) scale(${(1.15 - 0.15 * k).toFixed(3)})`;
+    A.el.style.opacity = Math.min(1, k * 1.6).toFixed(2);
+  }
+}
+
+// ---------------- Vida baixa: vinheta pulsante + batimento ----------------
+let lowOn = false, hbT = 0;
+function updateLowHealth(rdt) {
+  const want = state === 'playing' && player.hp > 0 && player.hp < 30;
+  if (want !== lowOn) { lowOn = want; $('low-vignette').classList.toggle('on', want); }
+  if (!want) { hbT = 0; return; }
+  const k = player.hp / 30; // 0..1
+  $('low-vignette').style.setProperty('--hb', (0.45 + 0.45 * k).toFixed(2) + 's');
+  hbT -= rdt;
+  if (hbT <= 0) { sfx.heartbeat(); hbT = 0.45 + 0.45 * k; }
+}
+
 // ---------------- HUD ----------------
 const hud = { score: -1, wave: -1, hp: -1, combo: -1, pw: '' };
 function updateHud() {
@@ -1340,14 +1441,15 @@ function updateHud() {
 }
 
 // ---------------- Telas ----------------
-const screens = ['tela-titulo', 'tela-como', 'tela-pausa', 'tela-fim'];
+const screens = ['tela-titulo', 'tela-tutorial', 'tela-config', 'tela-pausa', 'tela-fim'];
 function show(id) { for (const s of screens) $(s).hidden = s !== id; }
 function paintSound() { const t = isMuted() ? '🔇 Som: desligado' : '🔊 Som: ligado'; $('btn-som').textContent = t; $('btn-som2').textContent = t; }
 function clearWorld() {
   enemies = []; pBullets.list.length = 0; eBullets.list.length = 0;
   for (const it of items) scene.remove(it.g); items = [];
   if (boss) { scene.remove(boss.g); boss = null; }
-  $('boss-wrap').hidden = true;
+  $('boss-wrap').hidden = true; document.body.classList.remove('has-boss');
+  for (const A of hitArcs) { A.life = 0; A.el.style.opacity = '0'; }
   for (let i = 0; i < NP; i++) pLife[i] = 0;
   debris.length = 0;
 }
@@ -1356,12 +1458,14 @@ function resetPlayer() {
   hero.g.visible = true;
 }
 function startGame() {
-  initAudio(); sfx.click(); runId++;
+  initAudio(); sfx.click();
+  if (LS.get('cb-tutorial', '0') !== '1') { openTutorial('primeira'); return; } // 1ª vez: tutorial rápido antes
+  runId++;
   clearWorld(); resetPlayer();
   demo = false; state = 'playing';
   score = 0; kills = 0; combo = 0; maxCombo = 0; bossesKilled.n = 0; wave = 0;
   for (const k in hud) hud[k] = k === 'pw' ? '' : -1;
-  show(null); $('hud').hidden = false;
+  show(null); $('hud').hidden = false; measureHud();
   camPos.set(0, 22, 14);
   music(true);
   startWave(1);
@@ -1394,8 +1498,63 @@ function showResults() {
   show('tela-fim');
 }
 $('btn-jogar').addEventListener('click', startGame);
-$('btn-como').addEventListener('click', () => { initAudio(); sfx.click(); show('tela-como'); });
-$('btn-como-ok').addEventListener('click', () => { sfx.click(); show('tela-titulo'); });
+$('btn-como').addEventListener('click', () => { initAudio(); sfx.click(); openTutorial('menu'); });
+
+// ---------------- Tutorial rápido (1ª vez + "Como jogar") ----------------
+const TUT_TOUCH = [
+  { art: 'move', t: 'Andar', x: 'Arraste o <b>polegar esquerdo</b> em qualquer lugar da metade <b>esquerda</b> da tela para andar.' },
+  { art: 'fire', t: 'Tiro automático', x: 'O Capitão <b>atira sozinho</b> no inimigo mais perto. Quer mirar? Arraste o polegar na metade <b>direita</b>.' },
+  { art: 'dash', t: 'ESQUIVA', x: 'Toque no botão <b>ESQUIVA</b> para um pulo rápido: você fica <b>invencível</b> por um instante!' },
+  { art: 'items', t: 'Itens e chefes', x: 'Pegue <span class="pw o">ESPINGARDA</span> <span class="pw c">TIRO RÁPIDO</span> <span class="pw g">VIDA</span>. As setas na borda mostram inimigos fora da tela. A cada <b>5 ondas</b>, um <b>CHEFE</b>!' },
+];
+const TUT_PC = [
+  { art: 'keys', t: 'Andar', x: 'Use <b>WASD</b> ou as <b>setas</b> do teclado para andar.' },
+  { art: 'fire', t: 'Tiro automático', x: 'O Capitão <b>atira sozinho</b> no inimigo mais perto. Para mirar, <b>segure o clique</b> do mouse onde quiser.' },
+  { art: 'dash', t: 'ESQUIVA e pausa', x: '<b>Espaço</b> faz a ESQUIVA (invencível por um instante). <b>P</b> ou <b>Esc</b> pausa o jogo.' },
+  TUT_TOUCH[3],
+];
+let tutMode = 'menu', tutStep = 0, tutSteps = TUT_TOUCH;
+function openTutorial(mode) {
+  tutMode = mode; tutStep = 0; tutSteps = touchMode ? TUT_TOUCH : TUT_PC;
+  paintTutorial(); show('tela-tutorial');
+}
+function paintTutorial() {
+  const S = tutSteps[tutStep];
+  $('tut-art').className = 'tut-art art-' + S.art;
+  $('tut-titulo').textContent = S.t;
+  $('tut-txt').innerHTML = S.x;
+  $('tut-dots').innerHTML = tutSteps.map((_, i) => `<i class="${i === tutStep ? 'on' : ''}"></i>`).join('');
+  const lastStep = tutStep === tutSteps.length - 1;
+  $('tut-prox').textContent = lastStep ? (tutMode === 'primeira' ? '▶ Começar!' : 'Entendi!') : 'Próximo ▶';
+}
+function closeTutorial() {
+  LS.set('cb-tutorial', '1');
+  if (tutMode === 'primeira') startGame(); else show('tela-titulo');
+}
+$('tut-prox').addEventListener('click', () => { sfx.click(); if (tutStep < tutSteps.length - 1) { tutStep++; paintTutorial(); } else closeTutorial(); });
+$('tut-pular').addEventListener('click', () => { sfx.click(); closeTutorial(); });
+
+// ---------------- Configurações ----------------
+let cfgBack = 'tela-titulo';
+function paintConfig() {
+  for (const b of document.querySelectorAll('#seg-qual button')) b.classList.toggle('on', b.dataset.q === qualPref);
+  for (const b of document.querySelectorAll('#seg-vib button')) b.classList.toggle('on', (b.dataset.v === '1') === vibOn);
+  for (const b of document.querySelectorAll('#seg-som button')) b.classList.toggle('on', (b.dataset.s === '1') === !isMuted());
+  const cur = TIERS[tierIdx].label + (sun.castShadow ? '' : ' (sem sombras)');
+  const dev = DEV.cls === 'high' ? 'aparelho forte' : DEV.cls === 'mid' ? 'aparelho intermediário' : 'aparelho básico';
+  $('cfg-info').textContent = qpOk ? `Fixada pelo link (?q=${qp}): ${cur}.` : qualPref === 'auto' ? `Automática: ${cur} · ${dev}. Ajusta sozinha conforme o FPS.` : `Fixa em ${cur}.`;
+}
+function openConfig(back) { cfgBack = back; paintConfig(); show('tela-config'); }
+for (const b of document.querySelectorAll('#seg-qual button')) b.addEventListener('click', () => {
+  sfx.click(); qualPref = b.dataset.q; LS.set('cb-qualidade', qualPref);
+  if (!qpOk) { tierIdx = prefTier(); maxTier = isAuto() ? autoMaxTier() : tierIdx; lowCount = highCount = 0; applyTier(); }
+  paintConfig();
+});
+for (const b of document.querySelectorAll('#seg-vib button')) b.addEventListener('click', () => { vibOn = b.dataset.v === '1'; LS.set('cb-vibrar', vibOn ? '1' : '0'); sfx.click(); vibrate(30); paintConfig(); });
+for (const b of document.querySelectorAll('#seg-som button')) b.addEventListener('click', () => { initAudio(); setMuted(b.dataset.s !== '1'); paintSound(); sfx.click(); paintConfig(); });
+$('btn-config').addEventListener('click', () => { initAudio(); sfx.click(); openConfig('tela-titulo'); });
+$('btn-config2').addEventListener('click', () => { sfx.click(); openConfig('tela-pausa'); });
+$('btn-config-ok').addEventListener('click', () => { sfx.click(); show(cfgBack); });
 const toggleSound = () => { initAudio(); setMuted(!isMuted()); paintSound(); sfx.click(); };
 $('btn-som').addEventListener('click', toggleSound);
 $('btn-som2').addEventListener('click', toggleSound);
@@ -1409,7 +1568,6 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 
 // ---------------- Loop ----------------
 let last = performance.now(), fAcc = 0, fN = 0, fpsNow = 60, lowCount = 0, highCount = 0, lastDown = -1e9, lastUp = -1e9, upBlockUntil = 0;
-const maxTier = tierIdx;
 function frame(now) {
   requestAnimationFrame(frame);
   const raw = (now - last) / 1000; last = now;
@@ -1417,7 +1575,7 @@ function frame(now) {
   fAcc += raw; fN++;
   if (fAcc >= 2) {
     fpsNow = fN / fAcc; fAcc = 0; fN = 0;
-    if (!qp && (state === 'playing' || state === 'title') && !document.hidden) {
+    if (isAuto() && (state === 'playing' || state === 'title') && !document.hidden) {
       // histerese: cai rápido (2 janelas < 45 fps), sobe devagar (4 janelas > 56 fps), e para de subir se oscilar
       if (fpsNow < 45 && tierIdx > 0) {
         highCount = 0;
@@ -1446,7 +1604,7 @@ function frame(now) {
     if (state === 'playing') updateHud();
   }
   updateCamera(0, state === 'paused' ? 0 : rdt);
-  updateArrows();
+  updateArrows(); updateHitArcs(state === 'paused' ? 0 : rdt); updateLowHealth(state === 'paused' ? 0 : rdt);
   if (bloom.enabled) composer.render(); else renderer.render(scene, camera);
 }
 
@@ -1458,7 +1616,10 @@ if (DEBUG) window.__CB = {
   hurt(n) { player.inv = 0; player.dashT = 0; hurtPlayer(n, player.x + 1, player.z); }, drop(k) { dropItem(player.x + 2, player.z, k); }, info: () => renderer.info.render,
   mem: () => ({ ...renderer.info.memory, programs: renderer.info.programs.length }), restart: () => startGame(), menu: () => toTitle(),
   setTier(i) { tierIdx = clamp(i, 0, 2); applyTier(); }, get items() { return items.length; }, get view() { return { ...viewExt }; },
-  get player() { return { x: player.x, z: player.z }; }, teleport(x, z) { player.x = x; player.z = z; },
+  get player() { return { x: player.x, z: player.z }; }, get dev() { return { ...DEV, tierIdx, maxTier, qualPref, vibOn, shadow: sun.castShadow, pr: renderer.getPixelRatio() }; },
+  hurtFrom(n, sx, sz) { player.inv = 0; player.dashT = 0; hurtPlayer(n, sx, sz); }, get hitArcs() { return hitArcs.filter((A) => A.life > 0).length; }, get lowHealth() { return lowOn; },
+  get hudM() { return { ...hudM }; },
+  sceneStats() { const g = new Set(); let o = 0; scene.traverse((c) => { o++; if (c.geometry) g.add(c.geometry.uuid); }); return { objects: o, geos: g.size, types: [...new Set([...g])].length }; }, teleport(x, z) { player.x = x; player.z = z; },
   arrows: () => arrows.filter((A) => A.on).length + (bossArrow.on ? 1 : 0), get bossArrow() { return bossArrow.on; },
   screen(x, z) { _p.set(x, 1, z).project(camera); return { x: (_p.x * 0.5 + 0.5) * window.innerWidth, y: (-_p.y * 0.5 + 0.5) * window.innerHeight }; },
   get bossPos() { return boss ? { x: boss.x, z: boss.z, enter: boss.enter } : null; },

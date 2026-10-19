@@ -2,8 +2,9 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610191530
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610191545
 
+- Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), vibração e som — salvos no aparelho.
 - Celular: arraste à esquerda para andar, tiro automático no inimigo mais perto, arraste à direita para mirar, botão ESQUIVA.
 - PC: WASD/setas, mouse para mirar (segure o clique), Espaço = esquiva, P/Esc = pausa.
 - Ondas crescentes, 3 tipos de inimigo (zumbi, robô veloz, robô tanque), chefe a cada 5 ondas.
@@ -13,6 +14,14 @@ Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala def
 Toda a arte é gerada por código (formas simples) e todos os sons são sintetizados com WebAudio. Three.js © autores do three.js (MIT), em `js/vendor`.
 
 ## Novidades
+
+### v3 (19/10/2026)
+- Desempenho no Galaxy: detecta o aparelho (memória, núcleos e GPU Mali/Adreno/Xclipse) e escolhe a qualidade inicial; aparelhos intermediários começam sem sombras e os básicos em Baixa. Resolução limitada no celular (máx. 1,0 / 1,4 / 1,8).
+- Novo menu ⚙ Configurações (início e pausa): qualidade Auto/Baixa/Média/Alta, vibração e som, tudo salvo. `?q=` continua valendo.
+- Chefe sempre à vista no retrato: barra do chefe compacta e câmera que se afasta e reposiciona na luta.
+- Feedback: arco vermelho mostra de que lado veio o golpe, vinheta pulsante e batimento cardíaco com vida baixa, hit-stop e clarão branco no herói ao levar dano, inimigos piscam em branco com faíscas.
+- Tutorial rápido na 1ª partida (pode pular); "Como jogar" no menu repete o tutorial.
+- Brilho (bloom) mais suave e redondo nos tiros.
 
 ### v2 (19/10/2026)
 - Câmera no celular em pé: mais alta e inclinada, mostra a área em volta do herói e não passa dos muros; postes dos cantos somem no retrato para não tapar o herói.
