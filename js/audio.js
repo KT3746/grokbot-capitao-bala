@@ -79,6 +79,7 @@ export const sfx = {
   warn() { tone('square', 880, 880, 0.08, 0.06); tone('square', 660, 660, 0.08, 0.06, 0.1); },
   slam() { noise(0.9, 0.9, 500, 0.7, 'lowpass', 0, master, 40); tone('sine', 70, 25, 0.8, 0.7); },
   blast() { noise(0.3, 0.35, 1100, 0.8, 'lowpass', 0, master, 120); tone('sine', 140, 40, 0.2, 0.2); },
+  tick() { tone('square', 1500, 1500, 0.025, 0.035); },
   record() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.1)); },
 };
 

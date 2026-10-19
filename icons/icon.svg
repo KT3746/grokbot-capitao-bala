@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#1b2f66"/><stop offset=".6" stop-color="#0b1330"/><stop offset="1" stop-color="#050812"/></radialGradient>
+    <linearGradient id="hel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4f86ff"/><stop offset="1" stop-color="#1636a0"/></linearGradient>
+    <linearGradient id="crest" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#ff6a1f"/></linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="262" r="170" fill="none" stroke="#2ad4ff" stroke-opacity=".35" stroke-width="6"/>
+  <g transform="translate(256 270)">
+    <path d="M-120 40 C-120 -70 -70 -128 0 -128 C70 -128 120 -70 120 40 L120 70 L-120 70 Z" fill="url(#hel)"/>
+    <rect x="-22" y="-150" width="44" height="150" rx="14" fill="url(#crest)"/>
+    <rect x="-135" y="-6" width="270" height="26" rx="10" fill="url(#crest)"/>
+    <rect x="-92" y="24" width="184" height="46" rx="14" fill="#06202c"/>
+    <rect x="-84" y="32" width="168" height="30" rx="10" fill="#2ad4ff" filter="url(#glow)"/>
+    <path d="M-120 70 L120 70 L96 112 L-96 112 Z" fill="#1b1e27"/>
+  </g>
+</svg>

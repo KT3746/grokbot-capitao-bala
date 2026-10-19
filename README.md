@@ -2,9 +2,10 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610191700
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610191830
 
-- Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), vibração e som — salvos no aparelho.
+- Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
+- Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
 - Celular: arraste à esquerda para andar, tiro automático no inimigo mais perto, arraste à direita para mirar, botão ESQUIVA.
 - PC: WASD/setas, mouse para mirar (segure o clique), Espaço = esquiva, P/Esc = pausa.
 - Ondas crescentes, 3 tipos de inimigo (zumbi, robô veloz, robô tanque), chefe a cada 5 ondas.
@@ -15,6 +16,30 @@ Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala def
 Toda a arte é gerada por código (formas simples) e todos os sons são sintetizados com WebAudio. Three.js © autores do three.js (MIT), em `js/vendor`.
 
 ## Novidades
+
+### v5 (19/10/2026)
+- **Avisos dos chefes em vermelho de verdade**: os círculos e faixas de ataque saíram do bloom (cor sem tone mapping), ficam vermelhos vivos e piscam mais rápido logo antes do golpe. A invocação continua verde.
+- **Arma no chão não troca sozinha**: ao passar por cima aparece o botão **TROCAR** (no PC, tecla **E**) mostrando a arma nova e a atual. A arma antiga fica no chão, e a do chão some em ~11 s. Ao trocar, o nome da arma aparece em destaque.
+- **Mais impacto**:
+  - Tremor de câmera proporcional ao golpe, com empurrão na direção do impacto e ajuste Normal/Reduzido/Desligado.
+  - Clarão de cano em estrela, com a cor de cada arma.
+  - Rastros nos tiros e faíscas de impacto.
+  - Inimigos se desfazem em blocos com borda incandescente.
+  - Clarão de tela e câmera lenta na morte do chefe.
+  - Poeira dos passos e da esquiva.
+  - Herói com recuo da arma, inclinação na corrida e nas curvas, e respiração parado.
+  - Tudo continua instanciado, e os efeitos extras diminuem na qualidade Baixa.
+- **Telas**:
+  - Título animado: herói parado respirando, logo pulsando com reflexo de luz e menu entrando em sequência.
+  - Transições suaves entre telas.
+  - Faixas de onda com entrada animada; a do chefe treme.
+  - Pontos do fim de jogo contam até o total.
+  - Fonte única e margens seguras para notch e furo de câmera, inclusive em paisagem.
+- **Celular**:
+  - PWA com manifesto, ícones e funcionamento offline. O service worker usa cache versionado pelo `v=`: cada versão nova assume na hora e apaga a antiga, e a página sempre vem da rede quando há internet.
+  - Tela cheia no 1º toque em JOGAR (quando o navegador permite) e tela sempre acesa durante a partida (Wake Lock).
+  - Layout compacto com o celular deitado.
+- **Compartilhar recorde** no fim de jogo: usa o compartilhamento do celular ou copia o texto com o link.
 
 ### v4 (19/10/2026)
 - **Cartas de poder** depois de cada onda (inclusive a do chefe): 3 cartas grandes, fáceis de tocar, com ícone, descrição e cor de raridade (comum, raro, épico, arma). PC: clique, teclas 1/2/3 ou setas + Enter.

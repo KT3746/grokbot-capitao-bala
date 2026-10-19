@@ -1,0 +1,21 @@
+{
+  "name": "CAPITÃO BALA",
+  "short_name": "Capitão Bala",
+  "description": "Arcade de tiro 3D: zumbis e robôs invasores, chefes e poderes.",
+  "lang": "pt-BR",
+  "id": "./",
+  "start_url": "./?origem=app",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#070a14",
+  "theme_color": "#070a14",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx } from './audio.js?v=202610191700';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx } from './audio.js?v=202610191830';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -156,17 +156,18 @@ const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const sph = (r, ws = 12, hs = 8) => new THREE.SphereGeometry(r, ws, hs);
 const cyl = (rt, rb, h, s = 10) => new THREE.CylinderGeometry(rt, rb, h, s);
 
-function instMaterial(opts = {}) {
+function instMaterial(opts = {}, dissolve = false) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35, ...opts });
   m.onBeforeCompile = (s) => {
     s.vertexShader = s.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float emis;\nattribute float iFlash;\nvarying float vEmis;\nvarying float vFlash;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmis = emis;\nvFlash = iFlash;');
+      .replace('#include <common>', '#include <common>\nattribute float emis;\nattribute float iFlash;\nvarying float vEmis;\nvarying float vFlash;' + (dissolve ? '\nattribute float iDis;\nvarying float vDis;\nvarying vec3 vLP;' : ''))
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmis = emis;\nvFlash = iFlash;' + (dissolve ? '\nvDis = iDis;\nvLP = position;' : ''));
     s.fragmentShader = s.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vEmis;\nvarying float vFlash;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmis + vec3(vFlash * 2.8, vFlash * 2.7, vFlash * 2.5);');
+      .replace('#include <common>', '#include <common>\nvarying float vEmis;\nvarying float vFlash;' + (dissolve ? '\nvarying float vDis;\nvarying vec3 vLP;' : ''))
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmis + vec3(vFlash * 2.8, vFlash * 2.7, vFlash * 2.5);' + (dissolve
+        ? '\nif (vDis > 0.0) { float dn = fract(sin(dot(floor(vLP * 7.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 0.8 + (1.0 - clamp(vLP.y / 2.2, 0.0, 1.0)) * 0.2; if (dn < vDis) discard; if (dn < vDis + 0.14) totalEmissiveRadiance += vec3(3.2, 1.3, 0.35); }' : ''));
   };
-  m.customProgramCacheKey = () => 'cb-inst';
+  m.customProgramCacheKey = () => (dissolve ? 'cb-inst-dis' : 'cb-inst');
   return m;
 }
 const std = (color, rough = 0.5, metal = 0.2, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
@@ -355,7 +356,11 @@ function buildHero() {
   const flash = new THREE.Group();
   const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.9, 6), flashMat); f1.rotation.x = Math.PI / 2; f1.position.z = 0.4;
   const f2 = new THREE.Mesh(sph(0.2, 8, 6), flashMat);
-  flash.add(f1, f2); flash.visible = false; tip.add(flash);
+  // estrela de 4 pontas (2 planos cruzados) dá o formato clássico de clarão de boca
+  const starGeo = new THREE.PlaneGeometry(1.25, 0.16);
+  const f3 = new THREE.Mesh(starGeo, flashMat), f4 = new THREE.Mesh(starGeo, flashMat); f4.rotation.z = Math.PI / 2;
+  const star = new THREE.Group(); star.add(f3, f4); star.position.z = 0.12;
+  flash.add(f1, f2, star); flash.visible = false; tip.add(flash);
   // aura de esquiva / invencível
   const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(0.6, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
   shadowDisc.rotation.x = -Math.PI / 2; shadowDisc.position.y = 0.03; g.add(shadowDisc);
@@ -364,7 +369,8 @@ function buildHero() {
   // bolha do escudo regenerativo
   const shield = new THREE.Mesh(sph(1.15, 20, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 0.9, 2.2), transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }));
   shield.position.y = 1.15; shield.visible = false; g.add(shield);
-  return { g, legL, legR, armL, armR, head, tip, flash, mats, cape, glowRing, gunGlow, shield };
+  g.rotation.order = 'YXZ';
+  return { g, legL, legR, armL, armR, head, tip, flash, flashMat, star, mats, cape, glowRing, gunGlow, shield, gun };
 }
 const hero = buildHero();
 scene.add(hero.g);
@@ -415,7 +421,7 @@ function tankGeo() {
     P(sph(0.09, 6, 4), 0xffa020, 3, -0.35, 2.05, -0.3),
   ]);
 }
-const enemyMat = instMaterial();
+const enemyMat = instMaterial({}, true);
 const TYPES = {
   zombie: { geo: zombieGeo(), max: 70, hp: 30, speed: 2.3, r: 0.55, score: 100, dmg: 12, color: [0.5, 1.6, 0.3], drop: 0.06 },
   fast: { geo: fastGeo(), max: 50, hp: 16, speed: 5.4, r: 0.45, score: 150, dmg: 9, color: [0.4, 2, 3], drop: 0.08 },
@@ -427,6 +433,8 @@ for (const k in TYPES) {
   T.flashAttr = new THREE.InstancedBufferAttribute(new Float32Array(T.max), 1);
   T.flashAttr.setUsage(THREE.DynamicDrawUsage);
   T.geo.setAttribute('iFlash', T.flashAttr);
+  T.disAttr = new THREE.InstancedBufferAttribute(new Float32Array(T.max), 1); T.disAttr.setUsage(THREE.DynamicDrawUsage);
+  T.geo.setAttribute('iDis', T.disAttr);
   T.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   T.mesh.castShadow = true;
   T.mesh.frustumCulled = false;
@@ -435,6 +443,7 @@ for (const k in TYPES) {
 }
 const dummy = new THREE.Object3D();
 let enemies = [], enemySeq = 0;
+const corpses = []; // inimigos abatidos se desfazendo (mesmas malhas instanciadas)
 
 // ---------------- Projéteis ----------------
 function bulletPool(geo, color, max) {
@@ -445,6 +454,17 @@ function bulletPool(geo, color, max) {
 }
 const pBullets = bulletPool(new THREE.BoxGeometry(0.13, 0.13, 0.8), new THREE.Color(1, 1, 1), 320);
 pBullets.mesh.setColorAt(0, new THREE.Color(1, 1, 1));
+// rastro dos tiros: 1 plano aditivo com degradê por bala, mesma pool (1 draw call)
+const trailMesh = (() => {
+  const c = document.createElement('canvas'); c.width = 8; c.height = 64;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,255,255,0.9)'); g.fillStyle = gr; g.fillRect(0, 0, 8, 64);
+  const geo = new THREE.PlaneGeometry(0.2, 1).rotateX(-Math.PI / 2).translate(0, 0, -0.5);
+  const m = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), 320);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.setColorAt(0, new THREE.Color(1, 1, 1)); m.frustumCulled = false; m.count = 0; scene.add(m);
+  return m;
+})();
+const TRAIL_B = new THREE.Color(1.6, 1.0, 0.35), TRAIL_L = new THREE.Color(1.8, 0.6, 0.15);
 const eBullets = bulletPool(new THREE.SphereGeometry(0.24, 10, 8), new THREE.Color(2.6, 0.35, 1.7), 260);
 { // halo aditivo (substitui o bloom na qualidade baixa)
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -490,7 +510,9 @@ const blasts = [];
 const teleRingGeo = new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2);
 const teleDiscGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
 const teleLineGeo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0).rotateX(Math.PI / 2);
-const teleMat = () => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+// cor <= 1 e sem tone mapping: fica abaixo do limiar do bloom (1,05) e não 'estoura' para branco/laranja
+const teleMat = () => new THREE.MeshBasicMaterial({ color: 0xff1a10, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+const TELE_RED = [1, 0.06, 0.04], TELE_GREEN = [0.25, 1, 0.35];
 const TELE = [];
 for (let i = 0; i < 10; i++) {
   const T = { ring: new THREE.Mesh(teleRingGeo, teleMat()), disc: new THREE.Mesh(teleDiscGeo, teleMat()), lineBg: new THREE.Mesh(teleLineGeo, teleMat()), lineFill: new THREE.Mesh(teleLineGeo, teleMat()), on: false, kind: 'circle', t: 0, dur: 1, x: 0, z: 0, r: 1, ang: 0, len: 1, w: 1, hurt: true };
@@ -501,25 +523,26 @@ let teleI = 0;
 function teleGet(kind, dur, col) {
   const T = TELE[teleI]; teleI = (teleI + 1) % TELE.length;
   T.on = true; T.kind = kind; T.t = 0; T.dur = dur; T.hurt = true;
-  for (const m of [T.ring, T.disc, T.lineBg, T.lineFill]) { m.material.color.setRGB(col[0], col[1], col[2]); m.visible = false; }
+  const mx = Math.max(1, col[0], col[1], col[2]);
+  for (const m of [T.ring, T.disc, T.lineBg, T.lineFill]) { m.material.color.setRGB(col[0] / mx, col[1] / mx, col[2] / mx); m.visible = false; }
   return T;
 }
-function teleCircle(x, z, r, dur, col = [3, 0.35, 0.2]) { const T = teleGet('circle', dur, col); T.x = x; T.z = z; T.r = r; T.ring.visible = T.disc.visible = true; return T; }
-function teleLine(x, z, ang, len, w, dur, col = [3, 0.35, 0.2]) { const T = teleGet('line', dur, col); T.x = x; T.z = z; T.ang = ang; T.len = len; T.w = w; T.lineBg.visible = T.lineFill.visible = true; return T; }
+function teleCircle(x, z, r, dur, col = TELE_RED) { const T = teleGet('circle', dur, col); T.x = x; T.z = z; T.r = r; T.ring.visible = T.disc.visible = true; return T; }
+function teleLine(x, z, ang, len, w, dur, col = TELE_RED) { const T = teleGet('line', dur, col); T.x = x; T.z = z; T.ang = ang; T.len = len; T.w = w; T.lineBg.visible = T.lineFill.visible = true; return T; }
 function hideTele(T) { T.on = false; for (const m of [T.ring, T.disc, T.lineBg, T.lineFill]) m.visible = false; }
 function updateTele(dt) {
   for (const T of TELE) {
     if (!T.on) continue;
     T.t += dt;
     if (T.t >= T.dur) { hideTele(T); continue; }
-    const k = T.t / T.dur, pulse = 0.5 + 0.5 * Math.sin(T.t * 22);
+    const k = T.t / T.dur, pulse = 0.5 + 0.5 * Math.sin(T.t * (k > 0.7 ? 46 : 22)); // pisca mais rápido perto do golpe
     if (T.kind === 'circle') {
-      T.ring.position.set(T.x, 0.07, T.z); T.ring.scale.setScalar(T.r); T.ring.material.opacity = 0.55 + 0.45 * pulse;
-      T.disc.position.set(T.x, 0.06, T.z); T.disc.scale.setScalar(Math.max(0.05, T.r * k)); T.disc.material.opacity = 0.18 + 0.3 * k;
+      T.ring.position.set(T.x, 0.07, T.z); T.ring.scale.setScalar(T.r); T.ring.material.opacity = 0.7 + 0.3 * pulse;
+      T.disc.position.set(T.x, 0.06, T.z); T.disc.scale.setScalar(Math.max(0.05, T.r * k)); T.disc.material.opacity = 0.3 + 0.35 * k;
     } else {
       for (const m of [T.lineBg, T.lineFill]) { m.position.set(T.x, 0.06, T.z); m.rotation.y = T.ang; }
-      T.lineBg.scale.set(T.w, 1, T.len); T.lineBg.material.opacity = 0.16 + 0.22 * pulse;
-      T.lineFill.scale.set(T.w * 0.8, 1, Math.max(0.05, T.len * k)); T.lineFill.material.opacity = 0.35 + 0.3 * k;
+      T.lineBg.scale.set(T.w, 1, T.len); T.lineBg.material.opacity = 0.22 + 0.2 * pulse;
+      T.lineFill.scale.set(T.w * 0.8, 1, Math.max(0.05, T.len * k)); T.lineFill.material.opacity = 0.45 + 0.35 * k;
     }
   }
 }
@@ -571,7 +594,7 @@ function heal(v) {
 function setWeapon(w, silent) {
   player.weapon = w; hero.gunGlow.emissive.setHex(WEAPONS[w].glow); player.fireT = 0.15;
   if (w !== 'laser') stopLaser();
-  if (!silent) { sfx.weapon(); dmgNum(player.x, 3, player.z, WEAPONS[w].nome + '!', 'big'); vibrate([20, 30, 20]); hud.pw = '#'; }
+  if (!silent) { sfx.weapon(); dmgNum(player.x, 3, player.z, WEAPONS[w].nome + '!', 'big'); vibrate([20, 30, 20]); hud.pw = '#'; weaponToast(w); }
 }
 function ownedHtml(withNames) {
   let h = '';
@@ -744,7 +767,7 @@ function dropItem(x, z, kind) {
   const it = buildItem(kind);
   it.g.position.set(clamp(x, -ARENA + 1, ARENA - 1), 0, clamp(z, -ARENA + 1, ARENA - 1));
   scene.add(it.g);
-  items.push({ ...it, kind, life: kind.startsWith('w_') ? 20 : 14, t: 0 });
+  items.push({ ...it, kind, life: kind.startsWith('w_') ? 11 : 14, t: 0 });
 }
 function randomWeaponItem() {
   const ks = ['w_leque', 'w_laser', 'w_granada'].filter((k) => PW[k].weapon !== player.weapon);
@@ -815,13 +838,17 @@ function updateDmg(dt) {
 }
 
 // ---------------- Estado do jogo ----------------
-const player = { weapon: 'blaster', shieldOn: false, shieldT: 0, laserOn: false, laserTick: 0, vampN: 0, x: 0, z: 0, hp: 100, maxHp: 100, inv: 0, face: 0, dashT: 0, dashCd: 0, ddx: 0, ddz: 1, fireT: 0, shotgun: 0, rapid: 0, walk: 0, flashT: 0, mvx: 0, mvz: 0, shots: 0, aiming: false };
+const player = { weapon: 'blaster', shieldOn: false, shieldT: 0, laserOn: false, laserTick: 0, vampN: 0, x: 0, z: 0, hp: 100, maxHp: 100, inv: 0, face: 0, dashT: 0, dashCd: 0, ddx: 0, ddz: 1, fireT: 0, shotgun: 0, rapid: 0, walk: 0, flashT: 0, mvx: 0, mvz: 0, shots: 0, aiming: false, recoil: 0, leanF: 0, leanS: 0 };
 let state = 'title', demo = true;
 let score = 0, wave = 0, kills = 0, combo = 0, comboT = 0, maxCombo = 0;
 let best = 0;
 try { best = +localStorage.getItem('cb-recorde') || 0; } catch (_) {}
 let spawnQueue = [], spawnT = 0, waveState = 'fight', interT = 0, waveScale = { hp: 1, sp: 1, dmg: 1 }, cardsPending = false, waveTime = 0, waveTaken = 0;
-let shake = 0, hitstop = 0, slowT = 0, dyingT = 0, demoT = 0, titleAng = 0;
+let shake = 0, hitstop = 0, slowT = 0, slowK = 0.35, dyingT = 0, demoT = 0, titleAng = 0;
+let shakeMul = +LS.get('cb-tremor', '1'); if (!(shakeMul >= 0 && shakeMul <= 1)) shakeMul = 1;
+const camKick = new THREE.Vector3(); // empurrão direcional da câmera (recuo, golpes)
+function addShake(v) { shake = Math.min(1, shake + v * shakeMul); }
+function kickCam(dx, dz, v) { const l = Math.hypot(dx, dz) || 1; camKick.x += (dx / l) * v * shakeMul; camKick.z += (dz / l) * v * shakeMul; }
 const camPos = new THREE.Vector3(0, 20, 14), camLook = new THREE.Vector3();
 
 // ---------------- Entrada ----------------
@@ -868,6 +895,7 @@ window.addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (state === 'playing' && (e.code === 'Space' || e.code === 'ShiftLeft')) { dash(); e.preventDefault(); }
   if (state === 'upgrade') { cardKey(e); return; }
+  if ((e.code === 'KeyE' || e.code === 'KeyF') && state === 'playing') swapWeapon();
   if (e.code === 'KeyP' || e.code === 'Escape') { if (state === 'playing') pauseGame(); else if (state === 'paused') resumeGame(); }
   if (e.code === 'Enter' && state === 'title' && !$('tela-titulo').hidden) startGame();
   if (e.code === 'Escape' && !$('tela-tutorial').hidden) closeTutorial();
@@ -918,6 +946,7 @@ function nearestTarget(range) {
   return found ? [bx - player.x, bz - player.z] : null;
 }
 const _tip = new THREE.Vector3();
+const FLASH_COL = { blaster: [6, 3.6, 1.2], leque: [6, 2.4, 0.6], granada: [2.2, 5, 1], laser: [5, 1, 4.4] };
 function fire(dx, dz) {
   const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
   hero.tip.getWorldPosition(_tip);
@@ -944,19 +973,23 @@ function fire(dx, dz) {
       if (pBullets.list.length >= pBullets.max) break;
       const a = ang + (n > 1 ? (i / (n - 1) - 0.5) * spread : rand(-0.04, 0.04)) + (leque ? rand(-0.04, 0.04) : 0);
       const sp = leque ? rand(26, 33) : 34;
-      pBullets.list.push({ x: _tip.x, z: _tip.z, vx: Math.sin(a) * sp, vz: Math.cos(a) * sp, life: leque ? 0.36 : 0.75, dmg: (leque ? 8 : 10) * stats.dmg, kind: leque ? 'leque' : 'blaster', pierce: stats.pierce, bounce: stats.bounce, hit: -1, kb: leque ? 2.2 : 1 });
+      pBullets.list.push({ d: 0, x: _tip.x, z: _tip.z, vx: Math.sin(a) * sp, vz: Math.cos(a) * sp, life: leque ? 0.36 : 0.75, dmg: (leque ? 8 : 10) * stats.dmg, kind: leque ? 'leque' : 'blaster', pierce: stats.pierce, bounce: stats.bounce, hit: -1, kb: leque ? 2.2 : 1 });
     }
     if (leque) { rate = 0.46; flashS = 1.6; kick = 0.1; big = true; } else if (n > 1) flashS = 1.2;
     if (!demo) { if (leque) sfx.leque(); else sfx.shot(n > 2); } else if (Math.random() < 0.3) sfx.shot(false);
   }
   player.fireT = (rate / stats.rate) * (player.rapid > 0 ? 0.5 : 1);
   player.shots++;
-  hero.flash.visible = true; hero.flash.rotation.z = Math.random() * 6; hero.flash.scale.setScalar(flashS);
+  hero.flash.visible = true; hero.flash.rotation.z = Math.random() * 6; hero.flash.scale.set(flashS * rand(0.85, 1.15), flashS * rand(0.85, 1.15), flashS * rand(0.8, 1.3));
+  hero.star.rotation.z = Math.random() * 1.6; hero.star.scale.setScalar(rand(0.7, 1.2));
+  const FC = FLASH_COL[W] || FLASH_COL.blaster; hero.flashMat.color.setRGB(FC[0], FC[1], FC[2]);
+  player.recoil = Math.min(1.4, player.recoil + (W === 'leque' ? 1 : W === 'granada' ? 0.8 : 0.45));
+  if (!demo) kickCam(-dx, -dz, W === 'leque' ? 0.22 : W === 'granada' ? 0.16 : 0.05);
   player.flashTimer = 0.05;
   muzzleLight.position.copy(_tip); muzzleLight.color.setHex(0xffb347); muzzleLight.intensity = big ? 70 : 40;
   for (let k = 0; k < 3; k++) emit(_tip.x, _tip.y, _tip.z, dx * rand(4, 9) + rand(-1.5, 1.5), rand(0, 2), dz * rand(4, 9) + rand(-1.5, 1.5), [4, 2.4, 0.6], 0.12, 0.25, 0.05, 0, 4);
   if (player.shots % 2 === 0 && W !== 'granada') { if (debris.length < ND) debris.push({ x: _tip.x - dx * 0.5, y: 1.3, z: _tip.z - dz * 0.5, vx: dz * 3 + rand(-1, 1), vy: rand(3, 5), vz: -dx * 3 + rand(-1, 1), rx: 0, ry: 0, sx: rand(-20, 20), sy: rand(-20, 20), life: 0.9, size: 0.07, color: 0xffc23a }); }
-  shake = Math.min(1, shake + kick);
+  addShake(kick);
 }
 // ---- laser contínuo ----
 function stopLaser() { player.laserOn = false; laserBeam.visible = laserCore.visible = false; laserSfx(false); }
@@ -979,7 +1012,7 @@ function updateLaser(dt, on) {
   laserBeam.visible = laserCore.visible = true;
   laserBeam.position.set(_tip.x, 1.3, _tip.z); laserBeam.rotation.set(0, player.face, 0); laserBeam.scale.set(w * 1.6 * fl, w * fl, len);
   laserCore.position.copy(laserBeam.position); laserCore.rotation.copy(laserBeam.rotation); laserCore.scale.set(w * 0.45, w * 0.45, len);
-  muzzleLight.position.copy(_tip); muzzleLight.color.setHex(0xff3adf); muzzleLight.intensity = 30 + Math.random() * 15;
+  muzzleLight.position.copy(_tip); muzzleLight.color.setHex(0xff3adf); hero.flashMat.color.setRGB(5, 1, 4.4); hero.star.rotation.z += 0.3; hero.flash.scale.setScalar(0.7 + Math.random() * 0.3); muzzleLight.intensity = 30 + Math.random() * 15;
   player.laserTick -= dt;
   if (player.laserTick <= 0) {
     player.laserTick = (0.07 / stats.rate) * (player.rapid > 0 ? 0.6 : 1);
@@ -998,7 +1031,7 @@ function updateLaser(dt, on) {
     const ex = _tip.x + dx * len, ez = _tip.z + dz * len;
     for (let k = 0; k < 2; k++) emit(ex, 1.3, ez, rand(-3, 3), rand(1, 4), rand(-3, 3), [3, 0.5, 2.6], 0.25, 0.35, 0.05, -6, 2);
   }
-  shake = Math.min(1, shake + dt * 0.25);
+  addShake(dt * 0.25);
 }
 // ---- granadas ----
 function updateGrenades(dt) {
@@ -1027,7 +1060,7 @@ function explodeGrenade(x, z) {
   shock(x, z, R, [1.2, 3, 0.4], 0.45);
   addDebris(x, 0.5, z, 0x3a4a2a, 6, 7, 0.16);
   boomLight.position.set(x, 2, z); boomI = Math.max(boomI, 220);
-  shake = Math.min(1, shake + 0.3);
+  addShake(0.3);
   if (!demo) sfx.grenade();
 }
 function processBlasts() {
@@ -1045,7 +1078,12 @@ function damageEnemy(e, dmg, dx, dz, kbMul = 1, quiet = false) {
   const crit = Math.random() < stats.crit;
   if (crit) dmg *= 2;
   e.hp -= dmg; e.flash = 1;
-  for (let k = 0; k < 3; k++) emit(e.x - dx * 0.012, 1.3, e.z - dz * 0.012, rand(-3, 3), rand(1, 4), rand(-3, 3), [4, 4, 4], 0.14, 0.32, 0.04, 0, 3); // faísca branca
+  { // faísca de impacto: clarão curto no ponto do golpe + estilhaços rápidos refletidos
+    const l0 = Math.hypot(dx, dz) || 1, ix = e.x - (dx / l0) * e.r * 0.8, iz = e.z - (dz / l0) * e.r * 0.8;
+    emit(ix, 1.3, iz, 0, 0, 0, [5, 4.4, 3.4], 0.07, crit ? 1.3 : 0.8, 0.1, 0, 0);
+    const ns = quiet ? 1 : tierIdx > 0 ? 4 : 2;
+    for (let k = 0; k < ns; k++) { const a = Math.atan2(-dx, -dz) + rand(-1.1, 1.1), sp = rand(7, 14); emit(ix, 1.3, iz, Math.sin(a) * sp, rand(0.5, 4), Math.cos(a) * sp, [4.5, 3.4, 1.4], 0.16, 0.22, 0.03, -14, 5); }
+  }
   const kb = (e.type === 'tank' ? 1.2 : 4.5) * kbMul;
   const l = Math.hypot(dx, dz) || 1; e.kx += (dx / l) * kb; e.kz += (dz / l) * kb;
   const T = TYPES[e.type];
@@ -1063,6 +1101,7 @@ function addScore(v) {
 }
 function killEnemy(e, T) {
   e.dead = true;
+  if (corpses.length < 60) { const l = Math.hypot(e.kx, e.kz) || 1, kk = Math.min(4, l); corpses.push({ type: e.type, x: e.x, z: e.z, face: e.face, t: 0, vx: (e.kx / l) * kk, vz: (e.kz / l) * kk, tilt: Math.random() < 0.5 ? -1 : 1 }); }
   kills++;
   combo++; comboT = 2.2; maxCombo = Math.max(maxCombo, combo);
   const mult = Math.min(5, 1 + Math.floor(combo / 5));
@@ -1075,7 +1114,7 @@ function killEnemy(e, T) {
   addDebris(e.x, 1, e.z, e.type === 'zombie' ? 0x6f9e4a : e.type === 'fast' ? 0xc3cddd : 0x5d6474, big ? 12 : 6, big ? 8 : 6, big ? 0.3 : 0.18);
   shock(e.x, e.z, big ? 5 : 2.6, T.color, big ? 0.5 : 0.35);
   boomLight.position.set(e.x, 2, e.z); boomI = big ? 260 : 120;
-  shake = Math.min(1, shake + (big ? 0.5 : 0.18));
+  addShake((big ? 0.5 : 0.18));
   if (big) hitstop = 0.05;
   if (!demo) sfx.explode(big);
   if (!demo && Math.random() < T.drop) dropItem(e.x, e.z);
@@ -1091,9 +1130,10 @@ function hurtPlayer(dmg, sx, sz) {
     return;
   }
   dmg = Math.round(dmg * waveScale.dmg); waveTaken += dmg;
+  kickCam(player.x - sx, player.z - sz, 0.25 + Math.min(0.35, dmg * 0.012));
   player.hp = Math.max(0, player.hp - dmg);
   player.inv = 0.9; player.flashT = 0.25;
-  shake = Math.min(1, shake + 0.5);
+  addShake(Math.min(0.75, 0.25 + dmg * 0.014)); // tremor proporcional ao dano
   hitstop = Math.max(hitstop, player.hp <= 0 ? 0.12 : 0.07); // hit-stop no golpe
   showHitDir(sx, sz);
   vibrate(player.hp <= 0 ? [120, 60, 240] : 70);
@@ -1107,7 +1147,7 @@ function hurtPlayer(dmg, sx, sz) {
   if (player.hp <= 0) die();
 }
 function die() {
-  state = 'dying'; dyingT = 1.6; slowT = 1.2;
+  state = 'dying'; dyingT = 1.6; slowT = 1.2; slowK = 0.35; wakeLock(false);
   burst(player.x, 1.2, player.z, 70, [3, 1.5, 0.4], 12, 0.9, 0.7, -5);
   addDebris(player.x, 1.2, player.z, 0x1f4fc4, 10, 8, 0.25);
   addDebris(player.x, 1.2, player.z, 0xff8a1f, 8, 8, 0.25);
@@ -1210,10 +1250,10 @@ function updateBoss(dt) {
   if (b.enter > 0) {
     b.enter -= dt;
     b.g.position.y = -6 * Math.max(0, b.enter / 2.2) ** 2;
-    shake = Math.min(1, shake + dt * 1.2);
+    addShake(dt * 1.2);
     if (Math.random() < 0.6) emit(b.x + rand(-2.5, 2.5), 0.2, b.z + rand(-2.5, 2.5), rand(-2, 2), rand(4, 9), rand(-2, 2), [3, 1, 0.3], 0.8, 0.6, 0.1, -4);
     b.g.position.x = b.x; b.g.position.z = b.z; b.g.rotation.y = toP;
-    if (b.enter <= 0) { b.g.position.y = 0; shock(b.x, b.z, 9, [3, 0.8, 0.2], 0.6); shake = 1; }
+    if (b.enter <= 0) { b.g.position.y = 0; shock(b.x, b.z, 9, [3, 0.8, 0.2], 0.6); addShake(1); }
     return;
   }
   // ações — todas com aviso no chão antes do golpe
@@ -1225,7 +1265,7 @@ function updateBoss(dt) {
   let sp = 1.5 + b.bi * 0.25;
   const end = (t) => { b.act = null; b.actT = t; if (b.tele) { hideTele(b.tele); b.tele = null; } };
   if (b.act === 'radial') {
-    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.65; b.tele = teleCircle(b.x, b.z, 4.6, 0.65, [3, 0.3, 2.4]); sfx.warn(); }
+    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.65; b.tele = teleCircle(b.x, b.z, 4.6, 0.65); sfx.warn(); }
     b.actTimer -= dt;
     if (b.actStep === 1) { b.flash = 0.5 + 0.4 * Math.sin(b.t * 30); if (b.tele) { b.tele.x = b.x; b.tele.z = b.z; } if (b.actTimer <= 0) { b.actStep = 2; b.actTimer = 0; b.tele = null; } }
     else if (b.actTimer <= 0) {
@@ -1237,7 +1277,7 @@ function updateBoss(dt) {
     }
     sp *= 0.3;
   } else if (b.act === 'aimed') {
-    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.55; b.tele = teleLine(b.x, b.z, toP, 15, 1.6, 0.55, [3, 0.5, 0.2]); sfx.warn(); }
+    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.55; b.tele = teleLine(b.x, b.z, toP, 15, 1.6, 0.55); sfx.warn(); }
     b.actTimer -= dt;
     if (b.actStep === 1) { if (b.tele) { b.tele.x = b.x; b.tele.z = b.z; b.tele.ang = toP; } if (b.actTimer <= 0) { b.actStep = 2; b.actTimer = 0; b.tele = null; } }
     else if (b.actTimer <= 0) {
@@ -1247,7 +1287,7 @@ function updateBoss(dt) {
     }
     sp *= 0.5;
   } else if (b.act === 'charge') {
-    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.9; b.cvx = Math.sin(toP); b.cvz = Math.cos(toP); b.tele = teleLine(b.x, b.z, toP, 13.6, b.r * 2, 0.9, [3, 0.25, 0.15]); sfx.warn(); }
+    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.9; b.cvx = Math.sin(toP); b.cvz = Math.cos(toP); b.tele = teleLine(b.x, b.z, toP, 13.6, b.r * 2, 0.9); sfx.warn(); }
     b.actTimer -= dt;
     if (b.actStep === 1) {
       b.flash = 0.6 + 0.4 * Math.sin(b.t * 40); sp = 0;
@@ -1256,13 +1296,13 @@ function updateBoss(dt) {
     } else {
       b.x += b.cvx * 17 * dt; b.z += b.cvz * 17 * dt; sp = 0;
       if (Math.random() < 0.8) emit(b.x, 0.4, b.z, rand(-3, 3), rand(1, 3), rand(-3, 3), [3, 1.2, 0.3], 0.5, 0.6, 0.1, -3);
-      shake = Math.min(1, shake + dt * 0.8);
-      if (b.actTimer <= 0 || Math.abs(b.x) > ARENA - 2 || Math.abs(b.z) > ARENA - 2) { end(1.3); shock(b.x, b.z, 6, [3, 0.8, 0.2], 0.5); shake = Math.min(1, shake + 0.4); }
+      addShake(dt * 0.8);
+      if (b.actTimer <= 0 || Math.abs(b.x) > ARENA - 2 || Math.abs(b.z) > ARENA - 2) { end(1.3); shock(b.x, b.z, 6, [3, 0.8, 0.2], 0.5); addShake(0.4); }
     }
   } else if (b.act === 'summon') {
     if (b.actStep === 0) {
       b.actStep = 1; b.actTimer = 0.95; b.pts = [];
-      for (let i = 0; i < 3 + b.bi; i++) { const a = rand(0, 6.28), r = rand(3.5, 5.5); const x = clamp(b.x + Math.cos(a) * r, -ARENA + 1, ARENA - 1), z = clamp(b.z + Math.sin(a) * r, -ARENA + 1, ARENA - 1); b.pts.push([x, z]); const T = teleCircle(x, z, 1.1, 0.95, [0.6, 3, 0.4]); T.hurt = false; }
+      for (let i = 0; i < 3 + b.bi; i++) { const a = rand(0, 6.28), r = rand(3.5, 5.5); const x = clamp(b.x + Math.cos(a) * r, -ARENA + 1, ARENA - 1), z = clamp(b.z + Math.sin(a) * r, -ARENA + 1, ARENA - 1); b.pts.push([x, z]); const T = teleCircle(x, z, 1.1, 0.95, TELE_GREEN); T.hurt = false; }
       sfx.warn();
     }
     b.actTimer -= dt; sp *= 0.4;
@@ -1273,7 +1313,7 @@ function updateBoss(dt) {
       b.actStep = 1; b.actTimer = D; b.sx0 = b.x; b.sz0 = b.z;
       b.tx = clamp(player.x, -ARENA + 2.5, ARENA - 2.5); b.tz = clamp(player.z, -ARENA + 2.5, ARENA - 2.5);
       b.slamR = 3.4 + 0.2 * Math.min(4, b.bi);
-      b.tele = teleCircle(b.tx, b.tz, b.slamR, D, [3, 0.6, 0.1]); sfx.warn();
+      b.tele = teleCircle(b.tx, b.tz, b.slamR, D); sfx.warn();
     }
     b.actTimer -= dt; sp = 0;
     const k = clamp(1 - b.actTimer / D, 0, 1), e = k * k * (3 - 2 * k);
@@ -1282,13 +1322,13 @@ function updateBoss(dt) {
       b.y = 0; b.tele = null;
       if (Math.hypot(player.x - b.tx, player.z - b.tz) < b.slamR) hurtPlayer(26, b.tx, b.tz);
       shock(b.tx, b.tz, b.slamR * 1.7, [3, 0.9, 0.2], 0.6); burst(b.tx, 0.4, b.tz, 46, [3, 1.4, 0.3], 12, 0.7, 0.6, -6);
-      addDebris(b.tx, 0.6, b.tz, 0x4b5263, 14, 10, 0.3); boomLight.position.set(b.tx, 1.5, b.tz); boomI = 320; shake = 1; vibrate(60);
+      addDebris(b.tx, 0.6, b.tz, 0x4b5263, 14, 10, 0.3); boomLight.position.set(b.tx, 1.5, b.tz); boomI = 320; addShake(1); vibrate(60);
       sfx.slam();
       if (b.bi >= 2) for (let i = 0; i < 12; i++) enemyShot(b.tx, b.tz, (i / 12) * Math.PI * 2, 6);
       end(1.3);
     }
   } else if (b.act === 'spiral') {
-    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.6; b.tele = teleCircle(b.x, b.z, 3.2, 0.6, [2.4, 0.4, 3]); sfx.warn(); b.spA = toP; }
+    if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.6; b.tele = teleCircle(b.x, b.z, 3.2, 0.6); sfx.warn(); b.spA = toP; }
     b.actTimer -= dt; sp *= 0.2;
     if (b.actStep === 1) { b.flash = 0.5 + 0.4 * Math.sin(b.t * 30); if (b.actTimer <= 0) { b.actStep = 2; b.actTimer = 2.4; b.shots = 0; b.tele = null; } }
     else {
@@ -1312,6 +1352,7 @@ function damageBoss(dmg, quiet = false) {
   const b = boss; if (!b || b.enter > 0) return;
   const crit = Math.random() < stats.crit; if (crit) dmg *= 2;
   b.hp -= dmg; b.flash = Math.max(b.flash, 0.35);
+  if (!quiet) emit(b.x + rand(-0.8, 0.8), 2 + rand(0, 2), b.z + rand(-0.8, 0.8), rand(-5, 5), rand(1, 5), rand(-5, 5), [5, 4, 2.4], 0.1, 0.9, 0.1, -10, 3);
   if (!quiet || crit) dmgNum(b.x + rand(-1, 1), 4.5, b.z, String(Math.round(dmg)), crit ? 'crit' : '');
   const n = performance.now(); if (n - lastHitSfx > 50) { lastHitSfx = n; sfx.metal(); }
   if (b.hp <= 0) killBoss();
@@ -1321,14 +1362,14 @@ function killBoss() {
   bossesKilled.n++; musicIntensity(0); hideAllTele();
   addScore(5000 * b.bi);
   dmgNum(b.x, 5, b.z, '+' + 5000 * b.bi, 'big');
-  slowT = 1.3; shake = 1; hitstop = 0.12;
+  slowT = 2.0; slowK = 0.18; addShake(1); hitstop = 0.14; screenFlash('boss');
   vibrate([100, 50, 200]);
   const rid = runId;
   for (let i = 0; i < 5; i++) setTimeout(() => {
     if (rid !== runId) return;
     const x = b.x + rand(-2, 2), z = b.z + rand(-2, 2);
     burst(x, 2.5, z, 50, i % 2 ? [3, 1.2, 0.3] : [3.5, 2.5, 0.8], 13, 0.9, 0.9, -5);
-    shock(x, z, 7, [3, 0.9, 0.3], 0.6); boomLight.position.set(x, 3, z); boomI = 400; shake = 1; sfx.explode(true);
+    shock(x, z, 7, [3, 0.9, 0.3], 0.6); boomLight.position.set(x, 3, z); boomI = 400; addShake(1); sfx.explode(true);
   }, i * 160);
   addDebris(b.x, 3, b.z, 0x4b5263, 30, 12, 0.45);
   addDebris(b.x, 3, b.z, 0x8a1010, 14, 12, 0.35);
@@ -1351,7 +1392,7 @@ function updatePlayer(dt) {
     if (jl > 0.12) { mx += joy.x; mz += joy.y; }
   } else {
     demoT += dt;
-    const tx = Math.cos(demoT * 0.35) * 6, tz = Math.sin(demoT * 0.35) * 6;
+    const tx = Math.cos(demoT * 0.22) * 1.4, tz = Math.sin(demoT * 0.22) * 1.4; // no título o herói quase parado (respiração + tiros)
     mx = (tx - player.x) * 0.5; mz = (tz - player.z) * 0.5;
   }
   let ml = Math.hypot(mx, mz);
@@ -1361,6 +1402,7 @@ function updatePlayer(dt) {
   let speed = 7.2 * stats.speed;
   if (player.dashT > 0) {
     player.dashT -= dt;
+    if (player.dashT <= 0) for (let k = 0; k < 8; k++) { const a = rand(0, 6.28); emit(player.x, 0.12, player.z, Math.cos(a) * 3, rand(0.3, 1), Math.sin(a) * 3, [0.32, 0.27, 0.22], 0.5, 0.35, 0.8, 0.5, 4); }
     player.x += player.ddx * 22 * dt; player.z += player.ddz * 22 * dt;
     emit(player.x, 1.2, player.z, rand(-1, 1), rand(0, 1), rand(-1, 1), [0.4, 1.8, 3.5], 0.35, 0.8, 0.1, 0, 2);
   } else {
@@ -1405,13 +1447,29 @@ function updatePlayer(dt) {
 
   // animação do herói
   const moving = player.dashT > 0 ? 1.5 : ml;
+  const prevW = player.walk;
   player.walk += dt * (6 + 8 * moving) * (moving > 0.05 ? 1 : 0);
+  // poeira a cada passo (meia volta da passada)
+  if (moving > 0.3 && Math.floor(prevW / Math.PI) !== Math.floor(player.walk / Math.PI)) {
+    const side = Math.floor(player.walk / Math.PI) % 2 ? 1 : -1, cx = Math.cos(player.face) * 0.22 * side, cz = -Math.sin(player.face) * 0.22 * side;
+    const n = tierIdx > 0 ? 3 : 2;
+    for (let k = 0; k < n; k++) emit(player.x + cx + rand(-0.15, 0.15), 0.1, player.z + cz + rand(-0.15, 0.15), -player.mvx * rand(0.5, 1.5) + rand(-0.6, 0.6), rand(0.4, 1.1), -player.mvz * rand(0.5, 1.5) + rand(-0.6, 0.6), [0.32, 0.27, 0.22], 0.5, 0.3, 0.75, 0.6, 3);
+  }
   const sw = Math.sin(player.walk) * 0.75 * Math.min(1, moving);
   hero.legL.rotation.x = sw; hero.legR.rotation.x = -sw;
-  const recoil = player.flashTimer > 0 ? 0.18 : 0;
-  hero.armL.rotation.x = -1.25 + recoil; hero.armR.rotation.x = -1.35 + recoil;
+  player.recoil *= Math.exp(-dt * 14);
+  const rc = player.recoil, breath = Math.sin(performance.now() * 0.0028);
+  hero.armL.rotation.x = -1.25 + rc * 0.22 + breath * 0.025 * (1 - Math.min(1, moving)); hero.armR.rotation.x = -1.35 + rc * 0.26 + breath * 0.025 * (1 - Math.min(1, moving));
+  hero.gun.position.z = 0.55 - rc * 0.16; hero.gun.rotation.x = -rc * 0.12;
+  hero.head.position.y = 2.08 + breath * 0.015 + Math.abs(Math.cos(player.walk)) * 0.03 * Math.min(1, moving);
+  // inclinação: para a frente na direção da corrida e para o lado nas curvas (no referencial do herói)
+  const fwd = player.mvx * Math.sin(player.face) + player.mvz * Math.cos(player.face), sideM = player.mvx * Math.cos(player.face) - player.mvz * Math.sin(player.face);
+  const k = Math.min(1, dt * 10);
+  player.leanF += ((player.dashT > 0 ? 0.42 : fwd * 0.2) - player.leanF) * k; player.leanS += ((player.dashT > 0 ? 0 : -sideM * 0.16) - player.leanS) * k;
   hero.g.position.set(player.x, Math.abs(Math.cos(player.walk)) * 0.08 * Math.min(1, moving), player.z);
-  hero.g.rotation.set(player.dashT > 0 ? 0.35 : moving * 0.08, player.face, 0);
+  hero.g.rotation.set(player.leanF - rc * 0.06, player.face, player.leanS);
+  const sq = player.dashT > 0 ? 0.9 : 1 + breath * 0.008 * (1 - Math.min(1, moving));
+  hero.g.scale.set(2 - sq, sq, 2 - sq);
   hero.cape.rotation.x = 0.12 + Math.min(1, moving) * 0.5 + Math.sin(player.walk * 0.5 + performance.now() * 0.003) * 0.06;
   hero.glowRing.material.color.setRGB(player.shotgun > 0 ? 3 : 0.3, player.shotgun > 0 ? 1.4 : 1.6, player.shotgun > 0 ? 0.3 : 3);
   hero.g.visible = demo || player.inv <= 0 || Math.floor(player.inv * 16) % 2 === 0;
@@ -1486,9 +1544,19 @@ function updateEnemies(dt) {
     dummy.scale.set(s * (1 + e.flash * 0.08), s * (1 + e.flash * 0.14), s * (1 + e.flash * 0.08));
     dummy.updateMatrix();
     T.mesh.setMatrixAt(i, dummy.matrix);
-    T.flashAttr.array[i] = e.flash;
+    T.flashAttr.array[i] = e.flash; T.disAttr.array[i] = 0;
   }
-  for (const k in TYPES) { const T = TYPES[k]; T.mesh.count = cnt[k]; T.mesh.instanceMatrix.needsUpdate = true; T.flashAttr.needsUpdate = true; }
+  // abatidos: estouro rápido + dissolve com borda incandescente
+  for (let j = corpses.length - 1; j >= 0; j--) {
+    const c = corpses[j]; c.t += dt;
+    if (c.t >= 0.34) { corpses[j] = corpses[corpses.length - 1]; corpses.pop(); continue; }
+    const T = TYPES[c.type]; if (cnt[c.type] >= T.max) continue;
+    const i = cnt[c.type]++, k = c.t / 0.34, pop = 1 + Math.sin(Math.min(1, k * 2.5) * Math.PI) * 0.18;
+    dummy.position.set(c.x + c.vx * c.t, -k * 0.35, c.z + c.vz * c.t); dummy.rotation.set(-k * 0.5 * c.tilt, c.face, k * 0.4 * c.tilt, 'YXZ');
+    dummy.scale.set(pop, pop * (1 - k * 0.2), pop); dummy.updateMatrix();
+    T.mesh.setMatrixAt(i, dummy.matrix); T.flashAttr.array[i] = Math.max(0, 1 - k * 3); T.disAttr.array[i] = 0.05 + k * 0.98;
+  }
+  for (const k in TYPES) { const T = TYPES[k]; T.mesh.count = cnt[k]; T.disAttr.needsUpdate = true; T.mesh.instanceMatrix.needsUpdate = true; T.flashAttr.needsUpdate = true; }
 }
 function hitsPillar(x, z) {
   for (let k = 0; k < PILLARS.length; k++) { const dx = x - PILLARS[k][0], dz = z - PILLARS[k][1]; if (dx * dx + dz * dz < PILLAR_R[k] * PILLAR_R[k] * 0.8) return true; }
@@ -1502,7 +1570,7 @@ function updateBullets(dt) {
   const L = pBullets.list, lim = ARENA + 0.2;
   for (let i = L.length - 1; i >= 0; i--) {
     const b = L[i];
-    b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt;
+    b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt; b.d += 34 * dt;
     let dead = b.life <= 0;
     if (!dead && (Math.abs(b.x) > lim || Math.abs(b.z) > lim)) {
       if (b.bounce > 0) { // ricochete no muro
@@ -1539,7 +1607,10 @@ function updateBullets(dt) {
     const b = L[i], lq = b.kind === 'leque';
     dummy.position.set(b.x, 1.3, b.z); dummy.rotation.set(0, Math.atan2(b.vx, b.vz), 0); dummy.scale.set(lq ? 1.25 : 1, lq ? 1.25 : 1, lq ? 0.5 : 1); dummy.updateMatrix();
     pBullets.mesh.setMatrixAt(i, dummy.matrix); pBullets.mesh.setColorAt(i, BCOL[b.kind] || BCOL.blaster);
+    dummy.scale.set(lq ? 1.4 : 1, 1, Math.min(lq ? 1.1 : 2.2, b.d * 0.12)); dummy.updateMatrix(); // rastro (só depois de sair do cano)
+    trailMesh.setMatrixAt(i, dummy.matrix); trailMesh.setColorAt(i, lq ? TRAIL_L : TRAIL_B);
   }
+  trailMesh.count = L.length; trailMesh.instanceMatrix.needsUpdate = true; if (trailMesh.instanceColor) trailMesh.instanceColor.needsUpdate = true;
   pBullets.mesh.instanceMatrix.needsUpdate = true; if (pBullets.mesh.instanceColor) pBullets.mesh.instanceColor.needsUpdate = true;
   updateGrenades(dt);
   const E = eBullets.list;
@@ -1555,13 +1626,50 @@ function updateBullets(dt) {
   for (let i = 0; i < E.length; i++) { const b = E[i]; dummy.position.set(b.x, 1.2, b.z); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(pulse); dummy.updateMatrix(); eBullets.mesh.setMatrixAt(i, dummy.matrix); }
   eBullets.mesh.instanceMatrix.needsUpdate = true;
 }
+// ---- troca de arma: aparece um botão quando o herói está em cima da arma (nada de troca surpresa)
+let swapIt = null;
+const swapBtn = $('btn-trocar');
+function weaponToast(w) {
+  const W = WEAPONS[w], el = $('wpn-toast');
+  el.innerHTML = `<span>${W.icon}</span>${W.nome}<small>arma equipada</small>`; el.style.setProperty('--c', W.css);
+  el.hidden = true; void el.offsetWidth; el.hidden = false;
+  clearTimeout(weaponToast.t); weaponToast.t = setTimeout(() => (el.hidden = true), 1600);
+}
+function paintSwap(it) {
+  if (it === swapIt) return;
+  swapIt = it;
+  if (!it) { swapBtn.hidden = true; return; }
+  const w = PW[it.kind].weapon, W = WEAPONS[w], cur = WEAPONS[player.weapon];
+  swapBtn.style.setProperty('--c', W.css);
+  swapBtn.innerHTML = `<span class="sw-i">${W.icon}</span><span class="sw-t">${W.nome}</span><small>${touchMode ? 'Toque para trocar' : 'Aperte E para trocar'} · atual: ${cur.icon} ${cur.nome}</small>`;
+  swapBtn.hidden = false; sfx.click();
+}
+function swapWeapon() {
+  const it = swapIt; if (!it || state !== 'playing' || !items.includes(it)) return;
+  const old = player.weapon, w = PW[it.kind].weapon;
+  const x = it.g.position.x, z = it.g.position.z;
+  scene.remove(it.g); items.splice(items.indexOf(it), 1);
+  setWeapon(w);
+  burst(x, 1, z, 30, PW[it.kind].rgb, 7, 0.6, 0.4, 2); shock(x, z, 3, PW[it.kind].rgb, 0.4);
+  if (old !== 'blaster') { dropItem(x + rand(-0.4, 0.4), z + 1.6, 'w_' + old); } // a arma antiga fica no chão
+  paintSwap(null);
+}
+swapBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); swapWeapon(); });
+swapBtn.addEventListener('click', (e) => e.preventDefault());
 function updateItems(dt) {
+  let near = null, nearD = 1.5;
   for (let i = items.length - 1; i >= 0; i--) {
     const it = items[i];
     it.t += dt; it.life -= dt;
     it.icon.rotation.y += dt * 2.4; it.icon.position.y = 1 + Math.sin(it.t * 3) * 0.18;
     it.g.visible = it.life > 3 || Math.floor(it.life * 8) % 2 === 0;
     let d = Math.hypot(player.x - it.g.position.x, player.z - it.g.position.z);
+    const isW = it.kind.startsWith('w_');
+    if (isW) { // arma: não é puxada pelo ímã nem trocada sozinha
+      if (state === 'playing' && d < nearD && PW[it.kind].weapon !== player.weapon) { near = it; nearD = d; }
+      if (it.life <= 0) { scene.remove(it.g); items.splice(i, 1); }
+      continue;
+    }
     if (state === 'playing' && d < stats.magnet && d > 1.0 && !(it.kind === 'health' && player.hp >= player.maxHp)) { // ímã
       const k = Math.min(1, (dt * 11) / d); it.g.position.x += (player.x - it.g.position.x) * k; it.g.position.z += (player.z - it.g.position.z) * k;
       d = Math.hypot(player.x - it.g.position.x, player.z - it.g.position.z);
@@ -1578,6 +1686,8 @@ function updateItems(dt) {
     }
     if (it.life <= 0) { scene.remove(it.g); items.splice(i, 1); }
   }
+  paintSwap(near);
+  if (near && DEBUG && bot.on) swapWeapon();
 }
 function updateWaves(dt) {
   if (demo) {
@@ -1658,9 +1768,12 @@ function updateCamera(dt, rdt) {
     camLook.x += (lx - camLook.x) * k; camLook.z += (lz - camLook.z) * k; camLook.y = 1;
   }
   shake = Math.max(0, shake - rdt * 1.8);
-  const s = shake * shake * 0.9;
-  camera.position.set(camPos.x + rand(-s, s), camPos.y + rand(-s, s), camPos.z + rand(-s, s));
-  camera.lookAt(camLook.x + rand(-s, s) * 0.3, camLook.y, camLook.z);
+  // tremor suave (ruído por senos, não aleatório por quadro) + empurrão direcional que volta com mola
+  const s = shake * shake * 0.85, tt = performance.now() * 0.001;
+  const nx = (Math.sin(tt * 41.3) + Math.sin(tt * 23.1 + 1.7) * 0.6) * s, ny = (Math.sin(tt * 37.7 + 0.4) + Math.sin(tt * 19.9 + 2.3) * 0.6) * s * 0.7, nz = (Math.sin(tt * 31.1 + 2.9) + Math.sin(tt * 27.3 + 0.8) * 0.6) * s;
+  camKick.multiplyScalar(Math.exp(-rdt * 12));
+  camera.position.set(camPos.x + nx + camKick.x, camPos.y + ny, camPos.z + nz + camKick.z);
+  camera.lookAt(camLook.x + nx * 0.3 + camKick.x * 0.5, camLook.y, camLook.z + camKick.z * 0.5);
   // sombra acompanha o centro da área visível
   const sz = viewExt.ok ? camLook.z - (viewExt.top - viewExt.bot) * 0.5 : camLook.z;
   sun.position.set(camLook.x + 9, 20, sz + 7); sun.target.position.set(camLook.x, 0, sz);
@@ -1790,14 +1903,31 @@ function updateHud() {
   $('btn-dash').classList.toggle('cool', player.dashCd > 0);
 }
 
+// ---------------- Clarão de tela / transições ----------------
+function screenFlash(kind) { const el = $('flash'); el.className = ''; void el.offsetWidth; el.className = 'on ' + (kind || ''); }
+function wipe() { const el = $('wipe'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); }
+// ---------------- Tela cheia + tela sempre acesa (celular) ----------------
+let fsTried = false, wakeSentinel = null;
+function tryFullscreen() {
+  if (fsTried || !touchMode || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) return;
+  fsTried = true;
+  const el = document.documentElement;
+  try { if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (_) {}
+}
+async function wakeLock(on) {
+  try {
+    if (on) { if (!wakeSentinel && navigator.wakeLock && document.visibilityState === 'visible') { wakeSentinel = await navigator.wakeLock.request('screen'); wakeSentinel.addEventListener('release', () => (wakeSentinel = null)); } }
+    else if (wakeSentinel) { const w = wakeSentinel; wakeSentinel = null; await w.release(); }
+  } catch (_) { wakeSentinel = null; }
+}
 // ---------------- Telas ----------------
 const screens = ['tela-titulo', 'tela-tutorial', 'tela-config', 'tela-pausa', 'tela-fim', 'tela-cartas'];
 function show(id) { for (const s of screens) $(s).hidden = s !== id; }
 function paintSound() { const t = isMuted() ? '🔇 Som: desligado' : '🔊 Som: ligado'; $('btn-som').textContent = t; $('btn-som2').textContent = t; }
 function clearWorld() {
-  enemies = []; pBullets.list.length = 0; eBullets.list.length = 0; grenades.length = 0; grenMesh.count = 0; blasts.length = 0;
+  enemies = []; corpses.length = 0; pBullets.list.length = 0; trailMesh.count = 0; eBullets.list.length = 0; grenades.length = 0; grenMesh.count = 0; blasts.length = 0;
   hideAllTele(); stopLaser(); musicIntensity(0);
-  for (const it of items) scene.remove(it.g); items = [];
+  for (const it of items) scene.remove(it.g); items = []; paintSwap(null);
   if (boss) { scene.remove(boss.g); boss = null; }
   $('boss-wrap').hidden = true; document.body.classList.remove('has-boss');
   for (const A of hitArcs) { A.life = 0; A.el.style.opacity = '0'; }
@@ -1805,7 +1935,7 @@ function clearWorld() {
   debris.length = 0;
 }
 function resetPlayer() {
-  Object.assign(player, { x: 0, z: 0, hp: 100, inv: 0, face: Math.PI, dashT: 0, dashCd: 0, fireT: 0, shotgun: 0, rapid: 0, flashT: 0, mvx: 0, mvz: 0 });
+  Object.assign(player, { x: 0, z: 0, hp: 100, inv: 0, face: Math.PI, dashT: 0, dashCd: 0, fireT: 0, shotgun: 0, rapid: 0, flashT: 0, mvx: 0, mvz: 0, recoil: 0, leanF: 0, leanS: 0 });
   hero.g.visible = true;
 }
 function startGame() {
@@ -1816,31 +1946,65 @@ function startGame() {
   demo = false; state = 'playing'; cardsPending = false;
   score = 0; kills = 0; combo = 0; maxCombo = 0; bossesKilled.n = 0; wave = 0;
   for (const k in hud) hud[k] = k === 'pw' ? '' : -1;
-  show(null); $('hud').hidden = false; measureHud();
+  show(null); $('hud').hidden = false; measureHud(); wipe();
+  tryFullscreen(); wakeLock(true);
   camPos.set(0, 22, 14);
   music(true);
   startWave(1);
 }
 function pauseGame() {
   if (state !== 'playing') return;
-  state = 'paused'; show('tela-pausa'); music(false); stopLaser();
+  state = 'paused'; show('tela-pausa'); music(false); stopLaser(); wakeLock(false); paintSwap(null);
   $('pausa-upg').innerHTML = `<div class="own"><span>${WEAPONS[player.weapon].icon}</span>${WEAPONS[player.weapon].nome}</div>` + (ownedHtml(true) || '<div class="own vazio">Nenhum poder ainda</div>');
   joy.id = aimS.id = null; joy.x = joy.y = aimS.x = aimS.y = 0; joyBase.hidden = aimBase.hidden = true; mouse.down = false;
 }
-function resumeGame() { if (state !== 'paused') return; sfx.click(); state = 'playing'; show(null); music(true); last = performance.now(); }
+function resumeGame() { if (state !== 'paused') return; sfx.click(); state = 'playing'; show(null); music(true); last = performance.now(); wakeLock(true); }
 function toTitle() {
   sfx.click(); music(false);
-  runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0;
+  runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0; wakeLock(false); wipe();
   $('hud').hidden = true; show('tela-titulo');
   $('titulo-recorde').textContent = best.toLocaleString('pt-BR');
 }
+function countUp(el, to, ms) {
+  const t0 = performance.now(), id = ++countUp.id; el.textContent = '0'; el.classList.add('counting');
+  const step = (n) => {
+    if (id !== countUp.id) return;
+    const k = Math.min(1, (n - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(to * e).toLocaleString('pt-BR');
+    if (k < 1) { if (Math.random() < 0.35) sfx.tick(); requestAnimationFrame(step); } else el.classList.remove('counting');
+  };
+  requestAnimationFrame(step);
+}
+countUp.id = 0;
+const LIVE_URL = 'https://kt3746.github.io/grokbot-capitao-bala/';
+let lastRun = { score: 0, wave: 0, rec: false };
+function shareText() {
+  const r = lastRun;
+  return r.rec ? `Bati meu recorde no CAPITÃO BALA: ${r.score.toLocaleString('pt-BR')} pontos, chegando à onda ${r.wave}! Duvido você me superar 💥` : `Fiz ${r.score.toLocaleString('pt-BR')} pontos e cheguei à onda ${r.wave} no CAPITÃO BALA (meu recorde: ${best.toLocaleString('pt-BR')})! Duvido você me superar 💥`;
+}
+function toast(msg) { const el = $('toast'); el.textContent = msg; el.hidden = true; void el.offsetWidth; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2200); }
+async function copyText(t) {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(t); return true; } } catch (_) {}
+  try { const ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-999px;top:0;opacity:0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch (_) { return false; }
+}
+async function shareRecord() {
+  sfx.click();
+  const text = shareText(), data = { title: 'CAPITÃO BALA', text, url: LIVE_URL };
+  if (navigator.share && (!navigator.canShare || navigator.canShare(data))) {
+    try { await navigator.share(data); return 'share'; } catch (e) { if (e && e.name === 'AbortError') return 'abort'; }
+  }
+  const ok = await copyText(text + ' ' + LIVE_URL);
+  toast(ok ? '✅ Texto copiado! Cole onde quiser.' : 'Não deu para copiar. Link: ' + LIVE_URL);
+  return ok ? 'copy' : 'fail';
+}
 function showResults() {
-  state = 'over';
+  state = 'over'; wakeLock(false); paintSwap(null);
   const rec = score > best && score > 0;
+  lastRun = { score, wave, rec };
   if (rec) { best = score; try { localStorage.setItem('cb-recorde', String(best)); } catch (_) {} sfx.record(); } else sfx.over();
   $('fim-titulo').textContent = wave >= 10 ? 'QUE BATALHA!' : 'FIM DE JOGO';
   $('fim-recorde').hidden = !rec;
-  $('fim-pontos').textContent = score.toLocaleString('pt-BR');
+  countUp($('fim-pontos'), score, 1300);
   $('fim-onda').textContent = wave;
   $('fim-abates').textContent = kills;
   $('fim-chefes').textContent = bossesKilled.n;
@@ -1893,6 +2057,7 @@ function paintConfig() {
   for (const b of document.querySelectorAll('#seg-qual button')) b.classList.toggle('on', b.dataset.q === qualPref);
   for (const b of document.querySelectorAll('#seg-vib button')) b.classList.toggle('on', (b.dataset.v === '1') === vibOn);
   for (const b of document.querySelectorAll('#seg-som button')) b.classList.toggle('on', (b.dataset.s === '1') === !isMuted());
+  for (const b of document.querySelectorAll('#seg-trem button')) b.classList.toggle('on', +b.dataset.t === shakeMul);
   const cur = TIERS[tierIdx].label + (sun.castShadow ? '' : ' (sem sombras)');
   const dev = DEV.cls === 'high' ? 'aparelho forte' : DEV.cls === 'mid' ? 'aparelho intermediário' : 'aparelho básico';
   $('cfg-info').textContent = qpOk ? `Fixada pelo link (?q=${qp}): ${cur}.` : qualPref === 'auto' ? `Automática: ${cur} · ${dev}. Ajusta sozinha conforme o FPS.` : `Fixa em ${cur}.`;
@@ -1904,6 +2069,7 @@ for (const b of document.querySelectorAll('#seg-qual button')) b.addEventListene
   paintConfig();
 });
 for (const b of document.querySelectorAll('#seg-vib button')) b.addEventListener('click', () => { vibOn = b.dataset.v === '1'; LS.set('cb-vibrar', vibOn ? '1' : '0'); sfx.click(); vibrate(30); paintConfig(); });
+for (const b of document.querySelectorAll('#seg-trem button')) b.addEventListener('click', () => { shakeMul = +b.dataset.t; LS.set('cb-tremor', String(shakeMul)); sfx.click(); shake = 0; addShake(0.6); paintConfig(); });
 for (const b of document.querySelectorAll('#seg-som button')) b.addEventListener('click', () => { initAudio(); setMuted(b.dataset.s !== '1'); paintSound(); sfx.click(); paintConfig(); });
 $('btn-config').addEventListener('click', () => { initAudio(); sfx.click(); openConfig('tela-titulo'); });
 $('btn-config2').addEventListener('click', () => { sfx.click(); openConfig('tela-pausa'); });
@@ -1917,6 +2083,7 @@ $('btn-reiniciar').addEventListener('click', startGame);
 $('btn-menu').addEventListener('click', toTitle);
 $('btn-denovo').addEventListener('click', startGame);
 $('btn-fim-menu').addEventListener('click', toTitle);
+$('btn-share').addEventListener('click', () => { shareRecord(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
 
 // ---------------- Cartas de poder (entre ondas) ----------------
@@ -2016,7 +2183,7 @@ let last = performance.now(), fAcc = 0, fN = 0, fpsNow = 60, lowCount = 0, highC
 function stepSim(rdt) {
   let dt = rdt;
   if (hitstop > 0) { hitstop -= rdt; dt = 0; }
-  if (slowT > 0) { slowT -= rdt; dt *= 0.35; }
+  if (slowT > 0) { slowT -= rdt; dt *= slowT > 0.5 ? slowK : slowK + (1 - slowK) * (1 - Math.max(0, slowT) / 0.5); } // sai da câmera lenta suavemente
   if (state === 'playing' || state === 'title') updatePlayer(dt);
   if (state !== 'over') { updateWaves(dt); updateEnemies(dt); if (boss) updateBoss(dt); updateBullets(dt); processBlasts(); updateItems(dt); }
   if (state === 'dying') { dyingT -= rdt; if (dyingT <= 0) showResults(); }
@@ -2078,7 +2245,9 @@ if (DEBUG) window.__CB = {
   get up() { return { ...up }; }, get stats() { return { ...stats }; }, giveUp(id, n = 1) { up[id] = Math.min(UPG_BY[id].max, L(id) + n); recalcStats(); hud.pw = '#'; },
   get tele() { return TELE.filter((T) => T.on).map((T) => T.kind); }, forceAct(a) { if (boss) { boss.act = a; boss.actStep = 0; boss.actTimer = 0; boss.shots = 0; } },
   get laser() { return player.laserOn; }, get grenades() { return grenades.length; }, get pb() { return pBullets.list.length; }, get maxHp() { return player.maxHp; },
-  openCards() { openCards(); },
+  openCards() { openCards(); }, get swap() { return swapIt ? PW[swapIt.kind].weapon : null; }, swapNow() { swapWeapon(); }, get corpses() { return corpses.length; },
+  get shakeMul() { return shakeMul; }, get wake() { return !!wakeSentinel; }, get flashCls() { return $("flash").className; }, get slow() { return { slowT, slowK }; }, get lastShare() { return shareText(); }, share: () => shareRecord(), get appV() { return APP_V; },
+  dropAt(k, dx = 0, dz = 0) { dropItem(player.x + dx, player.z + dz, k); }, forceOver() { score = 12345; wave = 7; showResults(); },
 };
 
 paintSound();
@@ -2090,12 +2259,21 @@ resetPlayer();
   const pre = [bossModel.g, ...Object.keys(PW).map((k) => buildItem(k).g)];
   pre.forEach((o, i) => { o.position.set(i * 3 - 4, 0, 2); o.traverse((c) => (c.frustumCulled = false)); scene.add(o); });
   const fx = [laserBeam, laserCore, hero.shield, ...TELE.flatMap((T) => [T.ring, T.disc, T.lineBg, T.lineFill])];
-  fx.forEach((m) => (m.visible = true)); grenMesh.count = 1; grenMesh.setMatrixAt(0, new THREE.Matrix4());
+  fx.forEach((m) => (m.visible = true)); grenMesh.count = 1; grenMesh.setMatrixAt(0, new THREE.Matrix4()); trailMesh.count = 1; trailMesh.setMatrixAt(0, new THREE.Matrix4());
   updateCamera(0, 0.016);
   renderer.compile(scene, camera);
   composer.render(); renderer.render(scene, camera);
   pre.forEach((o) => { scene.remove(o); o.traverse((c) => (c.frustumCulled = true)); });
-  fx.forEach((m) => (m.visible = false)); grenMesh.count = 0;
+  fx.forEach((m) => (m.visible = false)); grenMesh.count = 0; trailMesh.count = 0;
 }
 $('loading').hidden = true;
+// girar o celular no meio da partida: remede o HUD e solta os joysticks (as coordenadas mudaram)
+let rotT = 0;
+window.addEventListener('resize', () => { clearTimeout(rotT); rotT = setTimeout(() => { if (!$('hud').hidden) measureHud(); if (state === 'playing') resetSticks(); }, 150); });
+const APP_V = new URL(import.meta.url).searchParams.get('v') || 'dev';
+if ('serviceWorker' in navigator && !new URLSearchParams(location.search).has('nosw') && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js?v=' + APP_V, { scope: './' }).then((reg) => { reg.update().catch(() => {}); }).catch(() => {});
+  });
+}
 requestAnimationFrame((t) => { last = t; frame(t); });
