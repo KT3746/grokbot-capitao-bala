@@ -6,7 +6,7 @@ const CACHE = 'cb-' + V;
 const CORE = [
   './', './index.html', './manifest.webmanifest', './favicon.svg',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
-  `./css/style.css?v=${V}`, `./js/main.js?v=${V}`, `./js/audio.js?v=${V}`,
+  `./css/style.css?v=${V}`, `./js/main.js?v=${V}`, `./js/audio.js?v=${V}`, `./js/models.js?v=${V}`, `./js/meta.js?v=${V}`,
   './js/vendor/three.module.js',
   './js/vendor/addons/postprocessing/EffectComposer.js', './js/vendor/addons/postprocessing/MaskPass.js',
   './js/vendor/addons/postprocessing/OutputPass.js', './js/vendor/addons/postprocessing/Pass.js',

@@ -76,6 +76,12 @@ export const sfx = {
   cards() { [392, 523, 659, 784].forEach((f, i) => tone('triangle', f, f, 0.22, 0.1, i * 0.05)); noise(0.3, 0.06, 5000, 1, 'highpass'); },
   pick(r) { const b = r === 'epico' || r === 'arma' ? [523, 784, 1046, 1568] : r === 'raro' ? [523, 659, 988] : [523, 784]; b.forEach((f, i) => tone('square', f, f, 0.14, 0.09, i * 0.06)); },
   weapon() { [330, 440, 660, 880].forEach((f, i) => tone('sawtooth', f, f * 1.01, 0.12, 0.07, i * 0.05)); noise(0.2, 0.1, 3000, 1, 'bandpass'); },
+  aim() { tone('sine', 1500, 2400, 0.9, 0.035); tone('square', 3000, 3000, 0.04, 0.03, 0.75); }, // mira do Atirador (sobe até travar)
+  snipe() { tone('sawtooth', 1800, 140, 0.22, 0.13); noise(0.12, 0.3, 4000, 1.2, 'highpass'); },
+  fuse() { for (let i = 0; i < 6; i++) tone('square', 700 + i * 140, 700 + i * 140, 0.04, 0.07, i * 0.12); noise(0.7, 0.06, 6000, 3, 'bandpass'); },
+  block() { tone('triangle', 2200, 1600, 0.06, 0.09); noise(0.05, 0.1, 7000, 3, 'bandpass'); },
+  ach() { [784, 988, 1175, 1568].forEach((f, i) => tone('triangle', f, f, 0.18, 0.1, i * 0.07)); },
+  coin() { tone('square', 1318, 1318, 0.06, 0.06); tone('square', 1760, 1760, 0.1, 0.06, 0.06); },
   warn() { tone('square', 880, 880, 0.08, 0.06); tone('square', 660, 660, 0.08, 0.06, 0.1); },
   slam() { noise(0.9, 0.9, 500, 0.7, 'lowpass', 0, master, 40); tone('sine', 70, 25, 0.8, 0.7); },
   blast() { noise(0.3, 0.35, 1100, 0.8, 'lowpass', 0, master, 120); tone('sine', 140, 40, 0.2, 0.2); },

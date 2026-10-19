@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
 <title>CAPITÃO BALA</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="css/style.css?v=202610191830" />
+<link rel="stylesheet" href="css/style.css?v=202610192000" />
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js", "three/addons/": "./js/vendor/addons/" } }
 </script>
@@ -44,6 +44,8 @@
 <div id="flash"></div>
 <div id="wipe"></div>
 <div id="toast" role="status" hidden></div>
+<div id="ach-toast" role="status" hidden></div>
+<div id="cine" aria-hidden="true"><i class="bar t"></i><i class="bar b"></i><div id="boss-card"></div></div>
 
 <!-- Título -->
 <section id="tela-titulo" class="screen">
@@ -54,6 +56,8 @@
   </div>
   <div class="menu">
     <button id="btn-jogar" class="btn btn-primary">▶ JOGAR</button>
+    <div id="arena-sel" class="arena-sel" role="group" aria-label="Arena"></div>
+    <button id="btn-loja" class="btn btn-ghost">🛒 Loja &amp; Conquistas <span class="coin-badge" id="titulo-moedas">0</span></button>
     <button id="btn-como" class="btn btn-ghost">Como jogar</button>
     <div class="menu-row">
       <button id="btn-config" class="btn btn-ghost small">⚙ Configurações</button>
@@ -115,6 +119,16 @@
   </div>
 </section>
 
+<section id="tela-loja" class="screen panel-screen" hidden>
+  <div class="panel loja">
+    <div class="loja-head"><h2>Loja &amp; Conquistas</h2><div class="coins">🪙 <b id="loja-moedas">0</b></div></div>
+    <div class="tabs" role="tablist"><button data-tab="melhorias" class="on">Melhorias</button><button data-tab="visuais">Visuais</button><button data-tab="conquistas">Conquistas</button></div>
+    <div id="loja-lista" class="loja-lista"></div>
+    <p class="loja-dica">Ganhe moedas em toda partida: pontos, ondas e chefes. Melhorias são pequenas e permanentes.</p>
+    <button id="btn-loja-ok" class="btn btn-primary">Voltar</button>
+  </div>
+</section>
+
 <section id="tela-fim" class="screen panel-screen" hidden>
   <div class="panel">
     <h2 id="fim-titulo">FIM DE JOGO</h2>
@@ -127,6 +141,7 @@
       <div><span>Maior combo</span><b id="fim-combo">0</b></div>
       <div><span>Recorde</span><b id="fim-melhor">0</b></div>
     </div>
+    <div id="fim-moedas" class="fim-moedas">+0 🪙</div>
     <div class="fim-poderes-wrap"><span>Arsenal</span><div id="fim-poderes" class="fim-poderes"></div></div>
     <button id="btn-denovo" class="btn btn-primary">↻ Jogar de novo</button>
     <button id="btn-share" class="btn btn-share">📤 Compartilhar recorde</button>
@@ -136,6 +151,6 @@
 
 <div id="loading">Carregando arena…</div>
 <div id="erro" hidden></div>
-<script type="module" src="js/main.js?v=202610191830"></script>
+<script type="module" src="js/main.js?v=202610192000"></script>
 </body>
 </html>

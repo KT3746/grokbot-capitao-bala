@@ -1,0 +1,12 @@
+{
+  "name": "capitao-bala",
+  "private": true,
+  "description": "CAPITÃO BALA — jogo arcade 3D no navegador (Three.js). Sem etapa de build: os arquivos são servidos como estão.",
+  "type": "module",
+  "scripts": {
+    "test:smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.47.0"
+  }
+}
