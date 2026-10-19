@@ -5,9 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx } from './audio.js?v=202610192000';
-import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, animInject, animDepthMaterial } from './models.js?v=202610192000';
-import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610192000';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610192130';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, animInject, animDepthMaterial } from './models.js?v=202610192130';
+import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610192130';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -89,6 +90,13 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.22, 1.05)
 const bloomSetSize = bloom.setSize.bind(bloom);
 bloom.setSize = (w, h) => bloomSetSize(Math.max(32, Math.round(w * bloomScale)), Math.max(32, Math.round(h * bloomScale)));
 composer.addPass(bloom);
+const gradePass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.08 }, uTint: { value: new THREE.Vector3(1.02, 1.0, 0.97) }, uShadow: { value: new THREE.Vector3(0.006, 0.01, 0.022) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  // em espaço linear, antes do tone mapping: sombras puxadas para o azul, luzes levemente quentes, saturação suave
+  fragmentShader: 'uniform sampler2D tDiffuse; uniform float uSat; uniform vec3 uTint; uniform vec3 uShadow; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); vec3 g = mix(vec3(l), c.rgb, uSat) * uTint; g += uShadow * (1.0 - clamp(l * 4.0, 0.0, 1.0)); gl_FragColor = vec4(max(g, 0.0), c.a); }',
+});
+composer.addPass(gradePass);
 composer.addPass(new OutputPass());
 
 // ---------------- Luzes ----------------
@@ -159,6 +167,15 @@ const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const sph = (r, ws = 12, hs = 8) => new THREE.SphereGeometry(r, ws, hs);
 const cyl = (rt, rb, h, s = 10) => new THREE.CylinderGeometry(rt, rb, h, s);
 
+const rimU = { value: new THREE.Color(0.25, 0.5, 1.1) };
+const RIM_GLSL = 'totalEmissiveRadiance += uRim * pow(1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), 3.0);';
+function addRim(m) { // contorno de luz barato: realça a silhueta contra o chão escuro
+  if (m.userData.rim) return; m.userData.rim = true;
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uRim = rimU; sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRim;').replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + RIM_GLSL); };
+  const k = m.customProgramCacheKey ? m.customProgramCacheKey.bind(m) : () => '';
+  m.customProgramCacheKey = () => k() + '-rim';
+}
 function instMaterial(opts = {}, dissolve = false, anim = false) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35, ...opts });
   m.onBeforeCompile = (s) => {
@@ -417,8 +434,8 @@ const PORTO_PILLARS = [[-11, -11, 1.75], [11, -11, 1.75], [-11, 11, 1.75], [11, 
   water.rotation.x = -Math.PI / 2; water.position.set(0, 0.03, -(ARENA + 4) - 20); water.receiveShadow = true; portoGroup.add(water);
 }
 const ARENA_LOOK = {
-  cidade: { bg: 0x060914, fog: 0x0a0f24, near: 34, far: 80, hemi: [0x8a9cff, 0x3a2040, 0.95], sun: [0xffe0bf, 1.9], rim: [0x3a7bff, 0.9], neon: 0xff7a1a, mark: [0.15, 0.5, 1.2] },
-  porto: { bg: 0x0d0907, fog: 0x1c120c, near: 28, far: 72, hemi: [0xffc890, 0x203a44, 0.8], sun: [0xffb070, 2.0], rim: [0x22e0c8, 1.1], neon: 0x2affd0, mark: [1.2, 0.6, 0.1] },
+  cidade: { bg: 0x060914, fog: 0x0a0f24, near: 34, far: 80, hemi: [0x8a9cff, 0x3a2040, 0.95], sun: [0xffe0bf, 1.9], rim: [0x3a7bff, 0.9], neon: 0xff7a1a, mark: [0.15, 0.5, 1.2], rimF: [0.22, 0.45, 1.05] },
+  porto: { bg: 0x0d0907, fog: 0x1c120c, near: 28, far: 72, hemi: [0xffc890, 0x203a44, 0.8], sun: [0xffb070, 2.0], rim: [0x22e0c8, 1.1], neon: 0x2affd0, mark: [1.2, 0.6, 0.1], rimF: [0.15, 0.7, 0.62] },
 };
 function recolor(mesh, hex) { const c = new THREE.Color(hex), a = mesh.geometry.attributes.color; for (let i = 0; i < a.count; i++) a.setXYZ(i, c.r, c.g, c.b); a.needsUpdate = true; }
 let arena = 'cidade';
@@ -434,7 +451,7 @@ function setArena(id, force) {
   scene.background.setHex(L.bg); scene.fog.color.setHex(L.fog); scene.fog.near = L.near; scene.fog.far = L.far;
   hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
   sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1]; rim.color.setHex(L.rim[0]); rim.intensity = L.rim[1];
-  recolor(neonMesh, L.neon); markMat.color.setRGB(...L.mark);
+  recolor(neonMesh, L.neon); markMat.color.setRGB(...L.mark); rimU.value.setRGB(...L.rimF);
   if (typeof clearDecals === 'function') clearDecals();
 }
 
@@ -454,7 +471,7 @@ function poseHero(m, rc, roll, hit, death) {
   hero.armL.rotation.set(-1.12 + rc * 0.22 + breath * 0.02 + hit * 0.4, 0, 0.66); hero.elL.rotation.set(-0.62, 0, 0);
   hero.gun.position.z = 0.58 - rc * 0.16; hero.gun.rotation.x = -rc * 0.12;
   const C = hero.capeSegs;
-  C[0].rotation.x = 0.1 + am * 0.32 + Math.sin(t * 3 + ph * 0.5) * 0.04 + hit * 0.3;
+  C[0].rotation.x = 0.1 + am * 0.22 + Math.sin(t * 3 + ph * 0.5) * 0.04 + hit * 0.3;
   C[1].rotation.x = 0.05 + am * 0.18 + Math.sin(t * 5.2 - 1) * (0.04 + 0.1 * am);
   C[2].rotation.x = 0.04 + am * 0.16 + Math.sin(t * 6.1 - 2.2) * (0.04 + 0.13 * am);
   if (roll > 0) { // rolamento: o corpo dá uma cambalhota e encolhe
@@ -474,11 +491,13 @@ function poseHero(m, rc, roll, hit, death) {
   }
 }
 const hero = buildHero();
+const HERO_S = 0.84; // herói um pouco menor: silhueta legível sem tapar a mira
+hero.g.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial) addRim(o.material); });
 hero.skin(meta.skin);
 scene.add(hero.g);
 
 // ---------------- Inimigos (malhas instanciadas, modelos em js/models.js) ----------------
-const enemyMat = instMaterial({}, true, true);
+const enemyMat = instMaterial({}, true, true); addRim(enemyMat);
 const enemyDepth = animDepthMaterial();
 const TYPES = {
   zombie: { geo: zombieGeo(), max: 70, hp: 30, speed: 2.3, r: 0.55, score: 100, dmg: 12, color: [0.5, 1.6, 0.3], drop: 0.06, walk: 5, goo: 'gosma', nome: 'Zumbi' },
@@ -807,6 +826,19 @@ function updateDecals(dt) {
   decalMesh.count = n; decalMesh.instanceMatrix.needsUpdate = true; if (decalMesh.instanceColor) decalMesh.instanceColor.needsUpdate = true;
 }
 
+// ---------------- Sombras de contato (blob) — 1 draw call para todos os inimigos e o chefe ----------------
+const blobTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,.65)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const BLOB_MAX = 200;
+const blobMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.5, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), BLOB_MAX);
+blobMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); blobMesh.frustumCulled = false; blobMesh.count = 0; blobMesh.renderOrder = 1; scene.add(blobMesh);
+function updateBlobs() {
+  const low = !sun.castShadow; blobMesh.material.opacity = low ? 0.6 : 0.32; // sem sombra real: blob mais forte
+  let n = 0;
+  for (const e of enemies) { if (n >= BLOB_MAX) break; const s = e.r * 2.5 * (e.spawn > 0 ? 1 - e.spawn / 0.55 : 1); dummy.position.set(e.x, 0.035, e.z); dummy.rotation.set(0, 0, 0); dummy.scale.set(s, 1, s); dummy.updateMatrix(); blobMesh.setMatrixAt(n++, dummy.matrix); }
+  if (boss && boss.enter <= 0 && n < BLOB_MAX) { const s = boss.r * 2.4 / (1 + (boss.y || 0) * 0.12); dummy.position.set(boss.x, 0.035, boss.z); dummy.scale.set(s, 1, s); dummy.updateMatrix(); blobMesh.setMatrixAt(n++, dummy.matrix); }
+  blobMesh.count = n; blobMesh.instanceMatrix.needsUpdate = true;
+}
+
 // ---------------- Itens (power-ups) ----------------
 const PW = {
   shotgun: { color: 0xff8a1f, label: 'ESPINGARDA', css: '#ff8a1f', dur: 12, rgb: [3, 1.4, 0.3] },
@@ -900,9 +932,18 @@ function buildBoss() {
   add(box(0.15, 0.7, 0.15), dark, -0.5, 4.95, 0); add(box(0.15, 0.7, 0.15), dark, 0.5, 4.95, 0);
   const armL = new THREE.Group(), armR = new THREE.Group(); armL.position.set(-2.1, 3.3, 0); armR.position.set(2.1, 3.3, 0); g.add(armL, armR);
   [armL, armR].forEach((A) => { add(sph(0.65, 12, 10), red, 0, 0, 0, A); add(box(0.8, 1.6, 0.8), steel, 0, -1.0, 0.2, A); const c = add(cyl(0.28, 0.32, 1.4, 12), dark, 0, -1.4, 0.8, A); c.rotation.x = Math.PI / 2; add(cyl(0.3, 0.3, 0.1, 12), core, 0, -1.4, 1.5, A).rotation.x = Math.PI / 2; });
-  return { g, core: coreM, armL, armR, mats, red, coreMat: core, eye };
+  // fase 2: chifres, espinhos nos ombros e um anel de energia girando na cintura
+  const furyMat = std(0x300800, 0.3, 0.3, { emissive: 0xff5a10, emissiveIntensity: 3.2 });
+  const fury = new THREE.Group(); fury.visible = false; g.add(fury);
+  for (const sx of [-1, 1]) {
+    const h = add(new THREE.ConeGeometry(0.22, 1.1, 6), furyMat, sx * 0.62, 5.0, 0.05, fury); h.rotation.z = -sx * 0.5;
+    for (let k = 0; k < 3; k++) { const sp = add(new THREE.ConeGeometry(0.16, 0.7, 5), furyMat, sx * (2.0 + k * 0.05), 3.85 + k * 0.05, -0.35 + k * 0.35, fury); sp.rotation.z = -sx * 0.9; }
+  }
+  const ring = add(new THREE.TorusGeometry(2.3, 0.09, 6, 40), furyMat, 0, 2.2, 0, fury); ring.rotation.x = Math.PI / 2;
+  return { g, core: coreM, armL, armR, mats, red, coreMat: core, eye, fury, ring, furyMat };
 }
 const bossModel = buildBoss(); // um único modelo reaproveitado (sem vazamento)
+bossModel.g.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial) addRim(o.material); });
 let boss = null;
 function roman(n) {
   const T = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]; let r = '';
@@ -1017,7 +1058,7 @@ function dash() {
   let dx = player.mvx, dz = player.mvz;
   if (Math.hypot(dx, dz) < 0.1) { dx = Math.sin(player.face); dz = Math.cos(player.face); }
   const l = Math.hypot(dx, dz); player.ddx = dx / l; player.ddz = dz / l;
-  player.dashT = 0.2; player.rollT = 0.34; player.dashCd = stats.dashCd; sfx.dash(); vibrate(15);
+  dashesUsed++; player.dashT = 0.2; player.rollT = 0.34; player.dashCd = stats.dashCd; sfx.dash(); vibrate(15);
   shock(player.x, player.z, 2, [0.3, 1.5, 3]);
 }
 // linha de visão: o segmento herói→alvo não pode atravessar um pilar
@@ -1212,7 +1253,7 @@ function bombBlast(x, z, src) {
     if (d < R + e.r) { damageEnemy(e, 60 * (1 - 0.35 * Math.min(1, d / R)), e.x - x, e.z - z, 1.8, true); if (e.dead) n++; }
   }
   if (boss && boss.enter <= 0 && Math.hypot(boss.x - x, boss.z - z) < R + boss.r) damageBoss(40, true);
-  if (!demo && state === 'playing' && Math.hypot(player.x - x, player.z - z) < R + 0.2) hurtPlayer(22, x, z);
+  if (!demo && state === 'playing' && Math.hypot(player.x - x, player.z - z) < R + 0.2) hurtPlayer(22, x, z, 'bomba');
   if (!demo) { runBombs = n; if (n >= 3) unlockAch('bomba3'); }
   burst(x, 0.8, z, 40, [3.5, 1.4, 0.3], 11, 0.6, 0.65, -6); burst(x, 0.8, z, 18, [1.2, 3, 0.4], 8, 0.5, 0.5, -4);
   shock(x, z, R, [3.5, 1.2, 0.3], 0.5); splat(x, z, 'queimado', 3.4); splat(x + rand(-0.6, 0.6), z + rand(-0.6, 0.6), 'gosma', 1.8);
@@ -1244,7 +1285,8 @@ function killEnemy(e, T) {
   if (!demo && stats.blast > 0) blasts.push({ x: e.x, z: e.z, r: 2 + 0.5 * stats.blast, dmg: (10 + 8 * stats.blast) * stats.dmg });
   if (!demo && stats.vamp > 0 && ++player.vampN >= 10) { player.vampN = 0; heal(stats.vamp * 4); }
 }
-function hurtPlayer(dmg, sx, sz) {
+let lastHit = '', dashesUsed = 0;
+function hurtPlayer(dmg, sx, sz, src = '') {
   if (demo || cine || (DEBUG && window.__CBgod) || player.inv > 0 || player.dashT > 0 || player.hp <= 0) return;
   if (player.shieldOn) { // escudo regenerativo absorve o golpe
     player.shieldOn = false; player.shieldT = stats.shieldCd; player.inv = 0.6;
@@ -1252,7 +1294,7 @@ function hurtPlayer(dmg, sx, sz) {
     dmgNum(player.x, 2.6, player.z, 'BLOQUEADO!', 'heal'); hud.pw = '#';
     return;
   }
-  dmg = Math.round(dmg * waveScale.dmg); waveTaken += dmg;
+  dmg = Math.round(dmg * waveScale.dmg); waveTaken += dmg; lastHit = src;
   kickCam(player.x - sx, player.z - sz, 0.25 + Math.min(0.35, dmg * 0.012));
   player.hp = Math.max(0, player.hp - dmg);
   player.inv = 0.9; player.flashT = 0.25; player.hitT = 0.3; runHit = true;
@@ -1328,7 +1370,7 @@ function showBanner(html, cls = '') {
 function startWave(n) {
   wave = n; waveState = 'fight';
   // inimigos escalam mais forte que antes (o jogador agora evolui com poderes)
-  waveScale = { hp: 1 + 0.15 * (n - 1) + 0.006 * (n - 1) ** 2, sp: Math.min(1.55, 1 + 0.035 * (n - 1)), dmg: 1 + 0.05 * (n - 1) };
+  waveScale = { hp: 1 + 0.15 * (n - 1) + 0.006 * (n - 1) ** 2, sp: n === 1 ? 0.82 : n === 2 ? 0.9 : Math.min(1.55, 1 + 0.035 * (n - 1)), dmg: 1 + 0.05 * (n - 1) };
   waveTime = 0; waveTaken = 0;
   const isBoss = n % 5 === 0;
   if (!demo) {
@@ -1336,7 +1378,7 @@ function startWave(n) {
     if (n > meta.maxWave) { const u0 = arenaUnlocked('porto'); meta.maxWave = n; saveMeta(); if (!u0 && arenaUnlocked('porto')) setTimeout(() => toast('⚓ Nova arena liberada: Porto Ferrugem! Escolha no menu.'), 2600); }
   }
   spawnQueue = [];
-  const count = isBoss ? 4 + n : Math.min(64, 6 + Math.round(n * 3.2));
+  const count = isBoss ? 4 + n : n === 1 ? 6 : n === 2 ? 9 : Math.min(64, 6 + Math.round(n * 3.2));
   const P2 = arena === 'porto', o = P2 ? 1 : 0;
   const fastP = n >= 2 ? Math.min(0.4, 0.12 + 0.04 * n) : 0;
   const tankP = n >= 3 ? Math.min(0.2, 0.05 * (n - 2)) : 0;
@@ -1355,29 +1397,30 @@ function startWave(n) {
     if (!demo) startBossCine(); else showBanner(`CHEFE!<small>${boss.name}</small>`, 'boss');
     sfx.boss(); vibrate([60, 40, 60]);
   } else {
-    showBanner(`ONDA ${n}<small>${tip || (n === 1 ? 'Proteja a arena!' : n % 5 === 4 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
+    showBanner(`ONDA ${n}<small>${tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : n % 5 === 4 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
     sfx.wave();
   }
 }
 function spawnBoss(bi) {
   const B = bossModel;
+  B.coreMat.emissiveIntensity = 4; B.red.emissiveIntensity = 0.6;
   B.g.rotation.set(0, 0, 0); B.armL.rotation.set(0, 0, 0); B.armR.rotation.set(0, 0, 0); B.core.scale.setScalar(1);
   for (const m of B.mats) m.emissive.setRGB(0, 0, 0);
   const type = BOSS_TYPES[(bi - 1) % BOSS_TYPES.length];
   B.coreMat.color.setHex(type.core); B.coreMat.emissive.setHex(type.core); B.eye.emissive.setHex(type.core);
   B.red.color.setHex(type.red); B.red.emissive.setHex(type.core); B.red.emissiveIntensity = 0.5;
-  B.g.scale.setScalar(type.escala);
+  B.g.scale.setScalar(type.escala); B.fury.visible = false;
   const hp = 1500 * (1 + 0.8 * (bi - 1));
-  boss = { ...B, bi, type, x: 0, z: -14, y: 0, hp, maxHp: hp, r: 2.1 * type.escala, t: 0, enter: 2.2, actT: 2.5, act: null, actStep: 0, actTimer: 0, cvx: 0, cvz: 0, flash: 0, face: 0, shots: 0, spA: 0, tele: null, pts: [], tx: 0, tz: 0, sx0: 0, sz0: 0, name: type.nome + (bi > BOSS_TYPES.length ? ' ' + roman(Math.floor((bi - 1) / BOSS_TYPES.length) + 1) : ''), cycle: 0 };
+  boss = { ...B, bi, type, x: 0, z: -14, y: 0, hp, maxHp: hp, r: 2.1 * type.escala, t: 0, enter: 2.2, actT: 2.5, act: null, actStep: 0, actTimer: 0, cvx: 0, cvz: 0, flash: 0, face: 0, shots: 0, spA: 0, tele: null, pts: [], tx: 0, tz: 0, sx0: 0, sz0: 0, name: type.nome + (bi > BOSS_TYPES.length ? ' ' + roman(Math.floor((bi - 1) / BOSS_TYPES.length) + 1) : ''), cycle: 0, p2: false, roarT: 0, combo: false };
   musicIntensity(1);
   if (Math.hypot(player.x, player.z + 14) < 8) boss.z = 14;
   boss.g.position.set(boss.x, -6, boss.z);
   scene.add(boss.g);
   $('boss-name').textContent = boss.name; $('boss-wrap').hidden = false; document.body.classList.add('has-boss'); measureHud();
 }
-function enemyShot(x, z, ang, sp, dmg = 0, big = false) {
+function enemyShot(x, z, ang, sp, dmg = 0, big = false, src = 'tiroChefe') {
   if (eBullets.list.length >= eBullets.max) return;
-  eBullets.list.push({ x, z, vx: Math.sin(ang) * sp, vz: Math.cos(ang) * sp, life: 4, dmg, big });
+  eBullets.list.push({ x, z, vx: Math.sin(ang) * sp, vz: Math.cos(ang) * sp, life: 4, dmg, big, src });
 }
 // laser de mira do Atirador (faixa fina vermelha, sem bloom para ficar legível)
 const aimMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5), new THREE.MeshBasicMaterial({ color: 0xff1a22, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }), 12);
@@ -1403,20 +1446,29 @@ function updateBoss(dt) {
     if (b.enter <= 0) { b.g.position.y = 0; shock(b.x, b.z, 9, [3, 0.8, 0.2], 0.6); addShake(1); }
     return;
   }
+  // fase 2: rugido (aviso) antes de ficar mais rápido e encadear combos
+  if (b.roarT > 0) {
+    b.roarT -= dt; b.flash = 0.5 + 0.5 * Math.sin(b.t * 36); addShake(dt * 1.5);
+    const k = 1 - Math.max(0, b.roarT) / 1.25; b.g.scale.setScalar(b.type.escala * (1 + 0.1 * Math.min(1, k * 1.6)));
+    if (Math.random() < 0.7) emit(b.x + rand(-1, 1), 4 + rand(0, 1), b.z + rand(-1, 1), rand(-4, 4), rand(2, 6), rand(-4, 4), [3.5, 0.9, 0.2], 0.6, 0.7, 0.1, -6, 2);
+  }
+  if (b.p2) { b.ring.rotation.z += dt * 4; b.furyMat.emissiveIntensity = 2.6 + Math.sin(b.t * 9) * 0.8; }
   // ações — todas com aviso no chão antes do golpe
-  b.actT -= dt;
+  if (b.roarT <= 0) b.actT -= dt;
   if (!b.act && b.actT <= 0) {
     const o = b.type.ordem;
-    b.act = o[b.cycle++ % o.length]; b.actStep = 0; b.actTimer = 0; b.shots = 0; b.tele = null;
+    if (b.p2 && b.combo) { b.act = 'meteoro'; b.combo = false; } // fase 2: cada golpe vem seguido de uma chuva de meteoros
+    else { b.act = o[b.cycle++ % o.length]; b.combo = b.p2; }
+    b.actStep = 0; b.actTimer = 0; b.shots = 0; b.tele = null;
   }
-  let sp = 1.5 + b.bi * 0.25;
-  const end = (t) => { b.act = null; b.actT = t; if (b.tele) { hideTele(b.tele); b.tele = null; } };
+  let sp = (1.5 + b.bi * 0.25) * (b.p2 ? 1.3 : 1) * (b.roarT > 0 ? 0 : 1);
+  const end = (t) => { b.act = null; b.actT = b.p2 ? (b.combo ? 0.45 : t * 0.7) : t; if (b.tele) { hideTele(b.tele); b.tele = null; } };
   if (b.act === 'radial') {
     if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.65; b.tele = teleCircle(b.x, b.z, 4.6, 0.65); sfx.warn(); }
     b.actTimer -= dt;
     if (b.actStep === 1) { b.flash = 0.5 + 0.4 * Math.sin(b.t * 30); if (b.tele) { b.tele.x = b.x; b.tele.z = b.z; } if (b.actTimer <= 0) { b.actStep = 2; b.actTimer = 0; b.tele = null; } }
     else if (b.actTimer <= 0) {
-      const n = 14 + b.bi * 4, off = b.shots * 0.5 * (Math.PI * 2 / n);
+      const n = 14 + b.bi * 4 + (b.p2 ? 4 : 0), off = b.shots * 0.5 * (Math.PI * 2 / n);
       for (let i = 0; i < n; i++) enemyShot(b.x, b.z, (i / n) * Math.PI * 2 + off, 7 + b.bi);
       sfx.enemyShot(); shock(b.x, b.z, 4, [3, 0.4, 2], 0.35);
       b.shots++; b.actTimer = 0.45;
@@ -1428,7 +1480,7 @@ function updateBoss(dt) {
     b.actTimer -= dt;
     if (b.actStep === 1) { if (b.tele) { b.tele.x = b.x; b.tele.z = b.z; b.tele.ang = toP; } if (b.actTimer <= 0) { b.actStep = 2; b.actTimer = 0; b.tele = null; } }
     else if (b.actTimer <= 0) {
-      for (let i = -2; i <= 2; i++) enemyShot(b.x + Math.sin(toP) * 2, b.z + Math.cos(toP) * 2, toP + i * 0.16, 11 + b.bi);
+      const w = b.p2 ? 3 : 2; for (let i = -w; i <= w; i++) enemyShot(b.x + Math.sin(toP) * 2, b.z + Math.cos(toP) * 2, toP + i * 0.16, 11 + b.bi);
       sfx.enemyShot(); b.shots++; b.actTimer = 0.28;
       if (b.shots >= 3 + b.bi) end(1.2);
     }
@@ -1467,12 +1519,26 @@ function updateBoss(dt) {
     b.x = b.sx0 + (b.tx - b.sx0) * e; b.z = b.sz0 + (b.tz - b.sz0) * e; b.y = Math.sin(k * Math.PI) * 6.5;
     if (b.actTimer <= 0) {
       b.y = 0; b.tele = null;
-      if (Math.hypot(player.x - b.tx, player.z - b.tz) < b.slamR) hurtPlayer(26, b.tx, b.tz);
+      if (Math.hypot(player.x - b.tx, player.z - b.tz) < b.slamR) hurtPlayer(26, b.tx, b.tz, 'chefe');
       shock(b.tx, b.tz, b.slamR * 1.7, [3, 0.9, 0.2], 0.6); burst(b.tx, 0.4, b.tz, 46, [3, 1.4, 0.3], 12, 0.7, 0.6, -6);
       addDebris(b.tx, 0.6, b.tz, 0x4b5263, 14, 10, 0.3); boomLight.position.set(b.tx, 1.5, b.tz); boomI = 320; addShake(1); vibrate(60);
       sfx.slam();
       if (b.bi >= 2) for (let i = 0; i < 12; i++) enemyShot(b.tx, b.tz, (i / 12) * Math.PI * 2, 6);
       end(1.3);
+    }
+  } else if (b.act === 'meteoro') { // novo na fase 2: círculos caem em cima de você e em volta
+    if (b.actStep === 0) {
+      b.actStep = 1; b.actTimer = 0.95; b.pts = [];
+      const n = 3 + Math.min(2, b.bi - 1);
+      for (let i = 0; i < n; i++) { const a = rand(0, 6.28), r = i === 0 ? 0 : rand(2.5, 4.5); const x = clamp(player.x + Math.cos(a) * r, -ARENA + 1, ARENA - 1), z = clamp(player.z + Math.sin(a) * r, -ARENA + 1, ARENA - 1); b.pts.push([x, z]); teleCircle(x, z, 1.9, 0.95); }
+      sfx.warn();
+    }
+    b.actTimer -= dt; sp *= 0.5;
+    if (b.actTimer <= 0) {
+      let hit = false;
+      for (const [x, z] of b.pts) { burst(x, 0.5, z, 22, [3.5, 1.3, 0.3], 9, 0.5, 0.5, -6); shock(x, z, 2.6, [3.5, 1, 0.2], 0.4); splat(x, z, 'queimado', 2.4); if (!hit && Math.hypot(player.x - x, player.z - z) < 1.9) { hurtPlayer(18, x, z, 'chefe'); hit = true; } }
+      boomLight.position.set(player.x, 2, player.z); boomI = Math.max(boomI, 260); addShake(0.5); sfx.meteor();
+      end(1.1);
     }
   } else if (b.act === 'spiral') {
     if (b.actStep === 0) { b.actStep = 1; b.actTimer = 0.6; b.tele = teleCircle(b.x, b.z, 3.2, 0.6); sfx.warn(); b.spA = toP; }
@@ -1491,14 +1557,22 @@ function updateBoss(dt) {
   b.g.rotation.y = b.face;
   b.core.scale.setScalar(1 + 0.15 * Math.sin(b.t * 7));
   b.armL.rotation.x = Math.sin(b.t * 2) * 0.2; b.armR.rotation.x = -Math.sin(b.t * 2) * 0.2;
-  for (const m of b.mats) m.emissive.setRGB(b.flash * 0.9, b.flash * 0.75, b.flash * 0.7);
-  if ((b.y || 0) < 1 && Math.hypot(player.x - b.x, player.z - b.z) < b.r + 0.5) hurtPlayer(b.act === 'charge' ? 28 : 20, b.x, b.z);
+  for (const m of b.mats) m.emissive.setRGB(b.flash * 0.9 + (b.p2 ? 0.08 : 0), b.flash * 0.75, b.flash * 0.7);
+  if ((b.y || 0) < 1 && Math.hypot(player.x - b.x, player.z - b.z) < b.r + 0.5) hurtPlayer(b.act === 'charge' ? 28 : 20, b.x, b.z, 'chefe');
   $('boss-fill').style.width = Math.max(0, (b.hp / b.maxHp) * 100).toFixed(1) + '%';
+}
+function startPhase2(b) {
+  b.p2 = true; b.roarT = 1.25; b.act = null; b.actT = 1.4; b.y = 0; if (b.tele) { hideTele(b.tele); b.tele = null; }
+  hideAllTele(); b.fury.visible = true; b.coreMat.emissiveIntensity = 7; b.red.emissiveIntensity = 1.6;
+  if (!demo) { sfx.roar(); vibrate([80, 40, 160]); showBanner(`FÚRIA!<small>${b.name} — fase 2</small>`, 'boss'); }
+  addShake(1); screenFlash('boss'); boomLight.position.set(b.x, 3, b.z); boomI = 380;
+  for (let i = 0; i < 3; i++) setTimeout(() => { if (boss === b) shock(b.x, b.z, 5 + i * 3, [3.5, 0.8, 0.2], 0.55); }, i * 260);
 }
 function damageBoss(dmg, quiet = false) {
   const b = boss; if (!b || b.enter > 0) return;
   const crit = Math.random() < stats.crit; if (crit) dmg *= 2;
   b.hp -= dmg; b.flash = Math.max(b.flash, 0.35);
+  if (!b.p2 && b.hp > 0 && b.hp <= b.maxHp * 0.5) startPhase2(b);
   if (!quiet) emit(b.x + rand(-0.8, 0.8), 2 + rand(0, 2), b.z + rand(-0.8, 0.8), rand(-5, 5), rand(1, 5), rand(-5, 5), [5, 4, 2.4], 0.1, 0.9, 0.1, -10, 3);
   if (!quiet || crit) dmgNum(b.x + rand(-1, 1), 4.5, b.z, String(Math.round(dmg)), crit ? 'crit' : '');
   const n = performance.now(); if (n - lastHitSfx > 50) { lastHitSfx = n; sfx.metal(); }
@@ -1613,7 +1687,7 @@ function updatePlayer(dt) {
   poseHero(Math.min(1, moving) * (fwd < -0.3 ? -1 : 1), player.recoil, player.rollT > 0 ? player.rollK : 0, player.hitT / 0.3, 0);
   hero.g.position.set(player.x, 0, player.z);
   hero.g.rotation.set(player.leanF - player.recoil * 0.05, player.face, player.leanS);
-  hero.g.scale.set(1, 1, 1);
+  hero.g.scale.setScalar(HERO_S);
   hero.glowRing.material.color.setRGB(player.shotgun > 0 ? 3 : 0.3, player.shotgun > 0 ? 1.4 : 1.6, player.shotgun > 0 ? 0.3 : 3);
   hero.g.visible = demo || player.inv <= 0 || player.hitT > 0.15 || Math.floor(player.inv * 16) % 2 === 0;
   const f = player.flashT * 4;
@@ -1635,8 +1709,8 @@ function updateEnemies(dt) {
       if (e.shootT <= 0 && d < 17 && !demo) {
         const a = Math.atan2(dx, dz);
         const cx = e.x + Math.sin(e.face) * 1.2, cz = e.z + Math.cos(e.face) * 1.2;
-        if (wave >= 8) { enemyShot(cx, cz, a - 0.2, 8.5); enemyShot(cx, cz, a + 0.2, 8.5); }
-        enemyShot(cx, cz, a, 8.5);
+        if (wave >= 8) { enemyShot(cx, cz, a - 0.2, 8.5, 0, false, 'tank'); enemyShot(cx, cz, a + 0.2, 8.5, 0, false, 'tank'); }
+        enemyShot(cx, cz, a, 8.5, 0, false, 'tank');
         for (let k = 0; k < 6; k++) emit(cx, 1.4, cz, Math.sin(a) * rand(2, 5) + rand(-1, 1), rand(0, 2), Math.cos(a) * rand(2, 5) + rand(-1, 1), [3, 0.5, 2], 0.25, 0.4, 0.05, 0, 3);
         sfx.enemyShot(); e.shootT = rand(2.0, 2.8); e.kx -= Math.sin(a) * 1.5; e.kz -= Math.cos(a) * 1.5; e.recoil = 1;
       }
@@ -1648,7 +1722,7 @@ function updateEnemies(dt) {
       if (e.aimT > 0) {
         sp = 0; e.aimT -= dt;
         if (e.aimT > 0.3) { e.ax = player.x; e.az = player.z; if (!los) { e.aimT = 0; e.shootT = 1.1; } }
-        else if (e.aimT <= 0) { const a = Math.atan2(e.ax - e.x, e.az - e.z); const cx = e.x + Math.sin(a) * 1.4, cz = e.z + Math.cos(a) * 1.4; enemyShot(cx, cz, a, 30, 17, true); sfx.snipe(); e.shootT = rand(2.6, 3.4); e.kx -= Math.sin(a) * 2; e.kz -= Math.cos(a) * 2; for (let k = 0; k < 8; k++) emit(cx, 1.46, cz, Math.sin(a) * rand(3, 8), rand(0, 2), Math.cos(a) * rand(3, 8), [3, 0.3, 0.5], 0.2, 0.4, 0.05, 0, 3); }
+        else if (e.aimT <= 0) { const a = Math.atan2(e.ax - e.x, e.az - e.z); const cx = e.x + Math.sin(a) * 1.4, cz = e.z + Math.cos(a) * 1.4; enemyShot(cx, cz, a, 30, 17, true, 'sniper'); sfx.snipe(); e.shootT = rand(2.6, 3.4); e.kx -= Math.sin(a) * 2; e.kz -= Math.cos(a) * 2; for (let k = 0; k < 8; k++) emit(cx, 1.46, cz, Math.sin(a) * rand(3, 8), rand(0, 2), Math.cos(a) * rand(3, 8), [3, 0.3, 0.5], 0.2, 0.4, 0.05, 0, 3); }
       } else {
         const dir = d > want + 2 ? 1 : d < want - 3 ? -1 : 0, st = Math.sin(e.t * 0.6 + e.seed) > 0 ? 1 : -1;
         tx = (dx / d) * dir + (-dz / d) * st * 0.5; tz = (dz / d) * dir + (dx / d) * st * 0.5;
@@ -1668,7 +1742,7 @@ function updateEnemies(dt) {
     e.x += (e.vx + e.kx) * dt; e.z += (e.vz + e.kz) * dt;
     const want = e.type === 'sniper' && e.aimT > 0 ? Math.atan2(e.ax - e.x, e.az - e.z) : Math.atan2(dx, dz);
     e.face += Math.atan2(Math.sin(want - e.face), Math.cos(want - e.face)) * Math.min(1, dt * (e.type === 'escudo' ? 1.5 : 6)); // Guardião vira devagar: dá para flanquear
-    if (!e.dead && e.type !== 'bomba' && d < e.r + 0.5) { hurtPlayer(TYPES[e.type].dmg, e.x, e.z); e.kx -= (dx / d) * 6; e.kz -= (dz / d) * 6; }
+    if (!e.dead && e.type !== 'bomba' && d < e.r + 0.5) { hurtPlayer(TYPES[e.type].dmg * (wave <= 2 ? 0.8 : 1), e.x, e.z, e.type); e.kx -= (dx / d) * 6; e.kz -= (dz / d) * 6; }
   }
   // separação
   for (let i = 0; i < n; i++) {
@@ -1799,7 +1873,7 @@ function updateBullets(dt) {
     const b = E[i];
     b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt;
     let dead = b.life <= 0 || Math.abs(b.x) > ARENA + 1 || Math.abs(b.z) > ARENA + 1 || hitsPillar(b.x, b.z);
-    if (!dead && state === 'playing') { const dx = player.x - b.x, dz = player.z - b.z; if (dx * dx + dz * dz < 0.42 && player.inv <= 0 && player.dashT <= 0) { hurtPlayer(b.dmg || (boss ? 12 : 10), b.x, b.z); dead = true; } }
+    if (!dead && state === 'playing') { const dx = player.x - b.x, dz = player.z - b.z; if (dx * dx + dz * dz < 0.42 && player.inv <= 0 && player.dashT <= 0) { hurtPlayer(b.dmg || (boss ? 12 : 10), b.x, b.z, b.src); dead = true; } }
     if (dead) { burst(b.x, 1.2, b.z, 5, [3, 0.4, 2], 3, 0.25, 0.25); E[i] = E[E.length - 1]; E.pop(); }
   }
   eBullets.mesh.count = E.length;
@@ -1888,7 +1962,7 @@ function updateWaves(dt) {
   if (spawnQueue.length && spawnT <= 0 && enemies.length < maxAlive) {
     const burstN = wave >= 6 ? 2 : 1;
     for (let k = 0; k < burstN && spawnQueue.length; k++) if (spawnEnemy(spawnQueue[0])) spawnQueue.shift();
-    spawnT = Math.max(0.25, 1.0 - wave * 0.055);
+    spawnT = wave <= 2 ? 1.5 : Math.max(0.25, 1.0 - wave * 0.055);
   }
   if (!spawnQueue.length && !enemies.length && !boss) {
     waveState = 'intermission'; interT = 1.2; cardsPending = true;
@@ -1923,7 +1997,7 @@ function updateCamera(dt, rdt) {
   // retrato: câmera mais alta e mais inclinada, mostrando ~7 m para cada lado do herói
   // luta de chefe: afasta um pouco a câmera para caber chefe + herói
   bossZoom += ((boss && state !== 'title' ? (portrait ? 1.08 : 1.2) : 1) - bossZoom) * Math.min(1, rdt * 2);
-  const D = (portrait ? clamp(7 / (t * a), 18, 30) : clamp(Math.max(9.5 / (t * a), 7.6 / t), 13, 27)) * ZOOM * bossZoom;
+  const D = (portrait ? clamp(7.7 / (t * a), 19, 32) : clamp(Math.max(10.2 / (t * a), 8.1 / t), 14, 28)) * ZOOM * bossZoom;
   const pitch = portrait ? 1.22 : 1.0;
   let lx = player.x, lz = player.z;
   if (state === 'title' || demo) {
@@ -2088,7 +2162,13 @@ function updateLowHealth(rdt) {
 const hud = { score: -1, wave: -1, hp: -1, combo: -1, pw: '' };
 function updateHud() {
   if (hud.score !== score) { hud.score = score; $('hud-score').textContent = score.toLocaleString('pt-BR'); }
-  if (hud.wave !== wave) { hud.wave = wave; $('hud-wave').textContent = 'ONDA ' + wave; }
+  const left = boss ? -2 : spawnQueue.length + enemies.length;
+  if (hud.wave !== wave || hud.left !== left) {
+    hud.wave = wave; hud.left = left;
+    $('hud-wave').textContent = 'ONDA ' + wave + (left === -2 ? ' · CHEFE' : waveState === 'fight' && left > 0 ? ' · faltam ' + left : '');
+    const goal = $('hud-goal'); const g = wave <= 2 && waveState === 'fight' ? '🎯 Derrote todos · chefe na onda 5' : '';
+    if (goal.textContent !== g) { goal.textContent = g; goal.hidden = !g; }
+  }
   const hp = Math.round(player.hp);
   if (hud.hp !== hp) {
     hud.hp = hp; const pct = (hp / player.maxHp) * 100 + '%';
@@ -2109,13 +2189,27 @@ function updateHud() {
 // ---------------- Clarão de tela / transições ----------------
 function screenFlash(kind) { const el = $('flash'); el.className = ''; void el.offsetWidth; el.className = 'on ' + (kind || ''); }
 function wipe() { const el = $('wipe'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); }
+// ---------------- iOS / WebKit ----------------
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const unlockAudio = () => { if (audioState() !== 'running') initAudio(); };
+for (const ev of ['touchend', 'pointerdown', 'keydown']) document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
+const canVibrate = typeof navigator.vibrate === 'function';
+function iosHint() {
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  if (!IOS || standalone || LS.get('cb-dica-ios', '0') === '1') return;
+  LS.set('cb-dica-ios', '1');
+  setTimeout(() => toast('📲 No Safari: Compartilhar → "Adicionar à Tela de Início" para jogar em tela cheia.'), 1200);
+}
 // ---------------- Tela cheia + tela sempre acesa (celular) ----------------
 let fsTried = false, wakeSentinel = null;
 function tryFullscreen() {
   if (fsTried || !touchMode || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) return;
   fsTried = true;
   const el = document.documentElement;
-  try { if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (_) {}
+  try {
+    if (el.requestFullscreen && !document.fullscreenElement) { const p = el.requestFullscreen({ navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); }
+    else if (el.webkitRequestFullscreen && !document.webkitFullscreenElement) el.webkitRequestFullscreen(); // iPad; no iPhone não existe e o jogo segue normal
+  } catch (_) {}
 }
 async function wakeLock(on) {
   try {
@@ -2214,7 +2308,7 @@ function startGame() {
   clearWorld(); resetPlayer(); resetRun();
   demo = false; state = 'playing'; cardsPending = false;
   if (arena === 'porto') unlockAch('porto');
-  score = 0; kills = 0; combo = 0; maxCombo = 0; bossesKilled.n = 0; wave = 0;
+  score = 0; kills = 0; combo = 0; maxCombo = 0; bossesKilled.n = 0; wave = 0; lastHit = ''; dashesUsed = 0;
   for (const k in hud) hud[k] = k === 'pw' ? '' : -1;
   show(null); $('hud').hidden = false; measureHud(); wipe();
   tryFullscreen(); wakeLock(true);
@@ -2230,10 +2324,11 @@ function pauseGame() {
 }
 function resumeGame() { if (state !== 'paused') return; sfx.click(); state = 'playing'; show(null); music(true); last = performance.now(); wakeLock(true); }
 function toTitle() {
-  sfx.click(); music(false);
+  sfx.click();
   runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0; wakeLock(false); wipe();
   $('hud').hidden = true; show('tela-titulo');
   $('titulo-recorde').textContent = best.toLocaleString('pt-BR'); paintCoins(); paintArenaSel();
+  musicIntensity(0); music(true); // trilha calma no menu
 }
 function countUp(el, to, ms) {
   const t0 = performance.now(), id = ++countUp.id; el._cu = id; el.textContent = '0'; el.classList.add('counting');
@@ -2267,6 +2362,21 @@ async function shareRecord() {
   toast(ok ? '✅ Texto copiado! Cole onde quiser.' : 'Não deu para copiar. Link: ' + LIVE_URL);
   return ok ? 'copy' : 'fail';
 }
+const DICAS = {
+  zombie: 'Os zumbis cercam quem fica parado. Ande em círculos e use a ESQUIVA (💨) para atravessar o grupo.',
+  fast: 'Os robôs velozes são frágeis: recue andando para trás enquanto atira e eles caem antes de chegar.',
+  tank: 'O Blindado atira de longe: use os blocos como escudo e só chegue perto com uma arma forte.',
+  sniper: 'Quando a linha vermelha do Atirador aparecer, saia dela para o lado ou use a esquiva.',
+  bomba: 'Atire no Zumbi-Bomba de longe. Se o círculo vermelho aparecer, saia dele na hora!',
+  escudo: 'O Guardião bloqueia tiros de frente: dê a volta e acerte pelas costas, ou use granadas.',
+  chefe: 'Círculos e faixas vermelhas no chão avisam o golpe do chefe: saia antes de piscarem rápido.',
+  tiroChefe: 'Os tiros do chefe vêm em leque: procure o espaço entre eles e use a esquiva para atravessar.',
+};
+function deathTip() {
+  if (dashesUsed === 0 && wave >= 2) return 'Você não usou a ESQUIVA (💨) nenhuma vez: durante o rolamento nada te acerta!';
+  if (wave <= 2 && !DICAS[lastHit]) return 'Continue sempre andando: parado você vira alvo fácil. O tiro é automático.';
+  return DICAS[lastHit] || 'Pegue as cartas de poder entre as ondas: dano e cadência deixam tudo mais fácil.';
+}
 function showResults() {
   state = 'over'; wakeLock(false); paintSwap(null);
   const rec = score > best && score > 0;
@@ -2274,6 +2384,7 @@ function showResults() {
   if (rec) { best = score; try { localStorage.setItem('cb-recorde', String(best)); } catch (_) {} sfx.record(); } else sfx.over();
   $('fim-titulo').textContent = wave >= 10 ? 'QUE BATALHA!' : 'FIM DE JOGO';
   $('fim-recorde').hidden = !rec;
+  $('fim-dica').innerHTML = '<b>💡 Dica</b>' + deathTip();
   countUp($('fim-pontos'), score, 1300);
   $('fim-onda').textContent = wave;
   $('fim-abates').textContent = kills;
@@ -2339,7 +2450,15 @@ function paintConfig() {
   const dev = DEV.cls === 'high' ? 'aparelho forte' : DEV.cls === 'mid' ? 'aparelho intermediário' : 'aparelho básico';
   $('cfg-info').textContent = qpOk ? `Fixada pelo link (?q=${qp}): ${cur}.` : qualPref === 'auto' ? `Automática: ${cur} · ${dev}. Ajusta sozinha conforme o FPS.` : `Fixa em ${cur}.`;
 }
-function openConfig(back) { cfgBack = back; paintConfig(); show('tela-config'); }
+function openConfig(back) { cfgBack = back; paintConfig(); paintVolumes(); show('tela-config'); }
+function paintVolumes() { const V = getVolumes(); for (const el of document.querySelectorAll('.vol input')) { el.value = Math.round(V[el.dataset.k] * 100); el.nextElementSibling.textContent = el.value + '%'; el.style.setProperty('--p', el.value + '%'); } }
+let volTick = 0;
+for (const el of document.querySelectorAll('.vol input')) el.addEventListener('input', () => {
+  initAudio(); setVolume(el.dataset.k, el.value / 100); paintVolumes();
+  if (el.dataset.k === 'musica') { if (state !== 'playing') { musicIntensity(0); music(true); } }
+  else if (performance.now() - volTick > 120) { volTick = performance.now(); sfx.coin(); }
+});
+if (!canVibrate) { $('seg-vib').hidden = true; $('vib-off').hidden = false; }
 for (const b of document.querySelectorAll('#seg-qual button')) b.addEventListener('click', () => {
   sfx.click(); qualPref = b.dataset.q; LS.set('cb-qualidade', qualPref);
   if (!qpOk) { tierIdx = prefTier(); maxTier = isAuto() ? autoMaxTier() : tierIdx; lowCount = highCount = 0; applyTier(); }
@@ -2474,7 +2593,7 @@ function stepSim(rdt) {
   comboT -= dt; if (comboT <= 0) combo = 0;
   // brasas no ar
   if (Math.random() < 0.6) emit(camLook.x + rand(-16, 16), 0.2, camLook.z + rand(-14, 14), rand(-0.3, 0.3), rand(0.6, 1.4), rand(-0.3, 0.3), [1.6, 0.6, 0.15], 3, 0.12, 0.02, 0.1, 0.2);
-  updateParticles(dt); updateDebris(dt); updateRings(dt); updateDmg(dt); updateTele(dt); updateDecals(dt);
+  updateParticles(dt); updateDebris(dt); updateRings(dt); updateDmg(dt); updateTele(dt); updateDecals(dt); updateBlobs();
   muzzleLight.intensity *= Math.exp(-rdt * 30);
   boomI *= Math.exp(-rdt * 9); boomLight.intensity = boomI;
   neonMesh.material.emissiveIntensity = 1;
@@ -2505,6 +2624,8 @@ function frame(now) {
     for (let i = 0; i < steps; i++) stepSim(rdt);
     updateCine(rdt);
     if (state === 'playing') updateHud();
+  if (state === 'playing') { musicIntensity(boss ? (boss.p2 ? 3 : 2) : waveState === 'fight' ? 1 : 0); setWaveLevel(wave); }
+  setLowHp(state === 'playing' && lowOn);
   }
   updateCamera(0, frozen ? 0 : rdt);
   updateArrows(); updateHitArcs(frozen ? 0 : rdt); updateLowHealth(frozen ? 0 : rdt);
@@ -2539,11 +2660,14 @@ if (DEBUG) window.__CB = {
   perf: () => ({ ...perfFrame }), get cine() { return cine ? +cine.t.toFixed(2) : null; }, get decals() { return decals.filter((D) => D.on).length; }, loja(tab) { lojaTab = tab || 'melhorias'; openLoja(); },
   get types() { const c = {}; for (const e of enemies) c[e.type] = (c[e.type] || 0) + 1; return c; }, get sniperAim() { return enemies.filter((e) => e.type === 'sniper' && e.aimT > 0).length; }, enemyList: () => enemies.map((e) => ({ t: e.type, x: +e.x.toFixed(1), z: +e.z.toFixed(1), hp: Math.round(e.hp), face: +e.face.toFixed(2), aim: +(e.aimT || 0).toFixed(2), fuse: +(e.fuse || 0).toFixed(2) })),
   setFace(i, f) { if (enemies[i]) enemies[i].face = f; }, hitEnemy(i, dmg, vx, vz) { const e = enemies[i]; if (!e) return null; if (shieldBlocks(e, vx, vz)) return 'bloqueado'; e.back = isBehind(e, vx, vz); damageEnemy(e, dmg, vx, vz); return e.dead ? 'morto' : 'ok'; }, splat(k) { splat(player.x + 2, player.z, k, 2); }, clearQueue() { spawnQueue.length = 0; }, keepOnly(ids) { enemies = enemies.filter((e) => ids.includes(e.id)); }, lastId: () => enemySeq, get eb() { return eBullets.list.length; }, tough() { for (const e of enemies) e.hp = e.maxHp = 1e6; }, freeze(on) { for (const e of enemies) e.speed = on ? 0.001 : TYPES[e.type].speed; },
+  get p2() { return boss ? { p2: boss.p2, roar: +boss.roarT.toFixed(2), act: boss.act, hp: Math.round(boss.hp), max: boss.maxHp } : null; }, bossHalf() { if (boss) damageBoss(boss.hp - boss.maxHp * 0.49, true); }, bossHeal() { if (boss) boss.hp = boss.maxHp * 0.49; },
+  get audio() { return { state: audioState(), level: musicLevel(), vol: getVolumes() }; }, get tip() { return deathTip(); }, get lastHit() { return lastHit; }, get ios() { return { IOS, canVibrate }; },
+  get heroScale() { return hero.g.scale.x; },
   get shakeMul() { return shakeMul; }, get wake() { return !!wakeSentinel; }, get flashCls() { return $("flash").className; }, get slow() { return { slowT, slowK }; }, get lastShare() { return shareText(); }, share: () => shareRecord(), get appV() { return APP_V; },
   dropAt(k, dx = 0, dz = 0) { dropItem(player.x + dx, player.z + dz, k); }, forceOver() { score = 12345; wave = 7; showResults(); },
 };
 
-paintSound();
+paintSound(); iosHint();
 setArena(meta.arena); paintCoins(); paintArenaSel();
 $('titulo-recorde').textContent = best.toLocaleString('pt-BR');
 applyTier();
@@ -2553,12 +2677,12 @@ resetPlayer();
   const pre = [bossModel.g, ...Object.keys(PW).map((k) => buildItem(k).g)];
   pre.forEach((o, i) => { o.position.set(i * 3 - 4, 0, 2); o.traverse((c) => (c.frustumCulled = false)); scene.add(o); });
   const fx = [laserBeam, laserCore, hero.shield, ...TELE.flatMap((T) => [T.ring, T.disc, T.lineBg, T.lineFill])];
-  fx.forEach((m) => (m.visible = true)); portoGroup.visible = cityGroup.visible = true; decalMesh.count = aimMesh.count = 1; decalMesh.setMatrixAt(0, new THREE.Matrix4()); aimMesh.setMatrixAt(0, new THREE.Matrix4()); grenMesh.count = 1; grenMesh.setMatrixAt(0, new THREE.Matrix4()); trailMesh.count = 1; trailMesh.setMatrixAt(0, new THREE.Matrix4());
+  bossModel.fury.visible = true; fx.forEach((m) => (m.visible = true)); portoGroup.visible = cityGroup.visible = true; decalMesh.count = aimMesh.count = 1; decalMesh.setMatrixAt(0, new THREE.Matrix4()); aimMesh.setMatrixAt(0, new THREE.Matrix4()); grenMesh.count = 1; grenMesh.setMatrixAt(0, new THREE.Matrix4()); trailMesh.count = 1; trailMesh.setMatrixAt(0, new THREE.Matrix4());
   updateCamera(0, 0.016);
   renderer.compile(scene, camera);
   composer.render(); renderer.render(scene, camera);
   pre.forEach((o) => { scene.remove(o); o.traverse((c) => (c.frustumCulled = true)); });
-  fx.forEach((m) => (m.visible = false)); grenMesh.count = 0; trailMesh.count = 0; decalMesh.count = aimMesh.count = 0; setArena(arena);
+  bossModel.fury.visible = false; fx.forEach((m) => (m.visible = false)); grenMesh.count = 0; trailMesh.count = 0; decalMesh.count = aimMesh.count = 0; setArena(arena);
 }
 $('loading').hidden = true;
 // girar o celular no meio da partida: remede o HUD e solta os joysticks (as coordenadas mudaram)

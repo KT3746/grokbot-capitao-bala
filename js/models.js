@@ -220,11 +220,11 @@ export function buildHero() {
   add(cyl(0.07, 0.07, 0.08, 10), gold, -0.34, 0.03, 0, head, 0, 0, Math.PI / 2); add(cyl(0.07, 0.07, 0.08, 10), gold, 0.34, 0.03, 0, head, 0, 0, Math.PI / 2);
   // capa em 3 segmentos (balança em onda)
   const capeSegs = [];
-  let parent = torso, y0 = 0.72, z0 = -0.43;
+  let parent = torso, y0 = 0.7, z0 = -0.42;
   for (let i = 0; i < 3; i++) {
-    const s = new THREE.Group(); s.position.set(0, i === 0 ? y0 : -0.36, i === 0 ? z0 : 0); parent.add(s);
-    add(box(0.7 + i * 0.08, 0.37, 0.04), capeMat, 0, -0.18, 0, s);
-    if (i === 2) add(box(0.88, 0.06, 0.06), gold, 0, -0.36, 0, s);
+    const s = new THREE.Group(); s.position.set(0, i === 0 ? y0 : -0.28, i === 0 ? z0 : 0); parent.add(s);
+    add(box(0.6 + i * 0.06, 0.29, 0.035), capeMat, 0, -0.14, 0, s); // capa curta: não tapa a arma vista de cima
+    if (i === 2) add(box(0.74, 0.05, 0.05), gold, 0, -0.28, 0, s);
     capeSegs.push(s); parent = s;
   }
   // arma

@@ -2,7 +2,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192000
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192130
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
@@ -18,16 +18,42 @@ Toda a arte é original e gerada por código (modelos em `js/models.js`, textura
 
 ## Teste automático
 
-Teste de fumaça com Playwright (abre o jogo num Chrome sem janela e passa pelo fluxo principal: título, partida, inimigos novos, escudo, cartas, armas, chefe com cinemática, arena 2, fim de jogo, moedas salvas e loja):
+Teste de fumaça com Playwright (abre o jogo num Chrome sem janela e passa pelo fluxo principal: título, partida, objetivo, inimigos novos, escudo, cartas, armas, chefe com cinemática e fase 2, arena 2, fim de jogo com dica, moedas salvas, loja e volumes; e, se o WebKit estiver instalado, uma passada iPhone com toque, áudio, PWA e falta de vibração):
 
 ```bash
 npm install          # instala só o playwright-core (sem baixar navegador)
 npm run test:smoke   # usa o Chrome/Chromium do sistema; ou CHROME_PATH=/caminho/do/chrome npm run test:smoke
+npx playwright-core install webkit   # opcional: adiciona a passada iPhone/Safari (WebKit)
 ```
 
 Não precisa de servidor: o script sobe um servidor local sozinho. Uma captura da arena 2 fica em `tests/out/`.
 
 ## Novidades
+
+### v7 (19/10/2026)
+- **Câmera e herói**: o Capitão Bala ficou menor na tela e a câmera mostra mais da arena, como nos jogos do gênero (Archero, Vampire Survivors).
+  - A capa ficou mais curta e não cobre mais a arma nem a mira vista de cima.
+- **Chefe com fase 2**: com 50% da vida o chefe para, **ruge** (aviso de 1,2 s, tela pisca e o chão treme) e entra em **FÚRIA**.
+  - Visual novo: chifres, espinhos e um anel de energia girando. O núcleo também brilha mais forte.
+  - Fica 30% mais rápido e descansa menos entre os golpes. Rajadas e leques ganham mais tiros.
+  - Golpe novo, a **chuva de meteoros**: depois de cada ataque caem círculos vermelhos em você e em volta. Saia do círculo antes da explosão.
+- **Luz e cor**: correção de cor leve, vinheta nas bordas e luz de contorno (rim light) no herói, nos inimigos e no chefe, com a cor de cada arena.
+  - Na qualidade Baixa, que não tem sombras, todos ganham uma sombra de contato barata (1 só chamada de desenho para todos).
+- **Música em camadas**, toda sintetizada:
+  - Muda com a situação: calma no menu e entre ondas, combate (com arpejo a partir da onda 3), chefe, e chefe em fúria.
+  - Com a vida baixa, a música fica abafada.
+  - As explosões grandes e o dano abaixam a música por um instante, para os efeitos importantes se destacarem.
+- **Volumes separados** em Configurações: geral, música e efeitos, salvos no aparelho.
+- **Começo mais suave**:
+  - Ondas 1 e 2 com menos inimigos, mais lentos e que batem menos.
+  - Objetivo na tela ("Derrote todos · chefe na onda 5") e contador de inimigos que faltam na onda.
+- **Dica no fim de jogo**: de acordo com o que derrotou você. Exemplos: laser do Atirador, explosão do Zumbi-Bomba, golpes do chefe, ou não ter usado a esquiva.
+- **iPhone / Safari**:
+  - O som é liberado no primeiro toque.
+  - Sem erro onde não existe tela cheia nem vibração. A opção de vibração some e aparece um aviso no lugar.
+  - Respeita as áreas seguras (Dynamic Island e barra de início).
+  - Ícone e título próprios para "Adicionar à Tela de Início", com uma dica única explicando como instalar.
+- **Testes**: o teste de fumaça cobre a fase 2 do chefe, os volumes, a dica e o objetivo. Também roda uma passada no **WebKit** (motor do Safari) com tela de iPhone, se ele estiver instalado.
 
 ### v6 (19/10/2026)
 - **Herói novo**: o Capitão Bala ganhou um modelo novo, todo articulado, que é fácil de reconhecer na câmera de cima.

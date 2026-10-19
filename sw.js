@@ -5,7 +5,7 @@ const V = new URL(self.location.href).searchParams.get('v') || 'dev';
 const CACHE = 'cb-' + V;
 const CORE = [
   './', './index.html', './manifest.webmanifest', './favicon.svg',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
   `./css/style.css?v=${V}`, `./js/main.js?v=${V}`, `./js/audio.js?v=${V}`, `./js/models.js?v=${V}`, `./js/meta.js?v=${V}`,
   './js/vendor/three.module.js',
   './js/vendor/addons/postprocessing/EffectComposer.js', './js/vendor/addons/postprocessing/MaskPass.js',

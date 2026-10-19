@@ -323,3 +323,22 @@ body.cine-on #hud .hud-top{opacity:.2}
 #banner.novo small{color:#ffcf7a}
 @media (max-height:520px){.arena-sel button{padding:6px 4px;font-size:13px}.loja-lista{max-height:46vh}#boss-card b{font-size:34px}#cine .bar{height:9vh}#boss-card{bottom:calc(9vh + 8px)}}
 @media (prefers-reduced-motion:reduce){#ach-toast,#cine.on #boss-card{animation-duration:.01s}}
+
+/* ===== v7: vinheta, objetivo, dica, volumes ===== */
+#vinheta{position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse 120% 95% at 50% 46%,transparent 58%,rgba(2,4,14,.42) 88%,rgba(0,0,8,.62))}
+.hud-mid{position:relative}
+#hud-wave{white-space:nowrap}
+#hud-goal{position:absolute;left:50%;top:100%;transform:translateX(-50%);font-size:11.5px;font-weight:800;color:#ffe08a;background:rgba(8,12,28,.6);padding:3px 10px;border-radius:99px;margin-top:30px;white-space:nowrap;text-shadow:0 1px 0 #000}
+.fim-dica{background:rgba(58,160,255,.12);border:1px solid rgba(58,160,255,.45);border-radius:14px;padding:10px 12px;font-size:14px;line-height:1.35;color:#d9ecff;text-align:left}
+.fim-dica b{display:block;color:#ffcf3a;font-size:13px;margin-bottom:2px}
+.fim-dica:empty{display:none}
+.vols{display:flex;flex-direction:column;gap:10px}
+.vol{display:grid;grid-template-columns:118px 1fr 44px;align-items:center;gap:10px;font-weight:800;font-size:14px;color:#cfe3ff}
+.vol b{text-align:right;font-size:13px;color:#8fd0ff}
+.vol input{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;touch-action:none;margin:0}
+.vol input::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:linear-gradient(90deg,#ffb627 0 var(--p,50%),rgba(255,255,255,.14) var(--p,50%))}
+.vol input::-moz-range-track{height:8px;border-radius:99px;background:linear-gradient(90deg,#ffb627 0 var(--p,50%),rgba(255,255,255,.14) var(--p,50%))}
+.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-9px;border-radius:50%;background:#fff;border:3px solid #ff8a1f;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.vol input::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid #ff8a1f}
+@media (max-height:520px){.vol{grid-template-columns:100px 1fr 40px;font-size:13px}#hud-goal{font-size:11px}}
+.screen{padding-top:calc(24px + var(--sa-t));padding-bottom:calc(24px + var(--sa-b))}
