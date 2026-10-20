@@ -122,6 +122,64 @@ export function guardGeo() {
   ]);
 }
 
+// Drone Vigia: voa por cima dos blocos, quatro hélices e um olho-câmera
+export function droneGeo() {
+  const shell = 0xd8dde8, dark = 0x262a34, cyan = 0x2af0ff, orange = 0xff8a1a;
+  const B = [0, 1.7, 0];
+  const parts = [
+    Q(sph(0.34, 14, 10), shell, 0, 0, O, 0, 1.7, 0, 0, 0, 0, 1.1, 0.55, 1.1),
+    Q(cyl(0.3, 0.36, 0.1, 14), dark, 0, 0, O, 0, 1.58, 0),
+    Q(sph(0.13, 10, 8), cyan, 5, 6, B, 0, 1.62, 0.3), // olho-câmera (frente)
+    Q(box(0.08, 0.05, 0.3), orange, 3, 0, O, 0, 1.92, -0.05), // luz de alerta em cima
+  ];
+  for (const [x, z] of [[-0.52, -0.52], [0.52, -0.52], [-0.52, 0.52], [0.52, 0.52]]) {
+    parts.push(Q(box(0.06, 0.05, 0.62), dark, 0, 0, O, x / 2, 1.72, z / 2, 0, Math.atan2(x, z)));
+    parts.push(Q(cyl(0.24, 0.24, 0.03, 12), 0x8fe8ff, 0.5, 0, O, x, 1.8, z)); // disco da hélice (brilha de leve)
+    parts.push(Q(cyl(0.05, 0.05, 0.14, 6), dark, 0, 0, O, x, 1.74, z));
+  }
+  return merge(parts);
+}
+// Ninho Zumbi: monte de gosma com ovos brilhando; não anda, solta zumbis
+export function ninhoGeo() {
+  const goo = 0x4f7a2a, gooD = 0x33521c, egg = 0xb8ff5a, dark = 0x1d2412;
+  const T = [0, 1.1, 0];
+  const parts = [
+    Q(sph(1.05, 16, 10), goo, 0, 0, O, 0, 0.35, 0, 0, 0, 0, 1.15, 0.62, 1.15),
+    Q(sph(0.75, 14, 10), gooD, 0, 0, O, 0.15, 0.8, -0.1, 0, 0, 0, 1, 0.8, 1),
+    Q(cyl(0.5, 0.8, 0.4, 14), dark, 0, 6, T, 0, 1.12, 0), // boca no topo (pulsa antes de soltar um zumbi)
+    Q(cyl(0.42, 0.42, 0.05, 14), egg, 2, 6, T, 0, 1.33, 0),
+  ];
+  for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2 + 0.3, r = 0.85 + (i % 2) * 0.18; parts.push(Q(sph(0.2 + (i % 3) * 0.04, 10, 8), egg, 1.3, 0, O, Math.cos(a) * r, 0.42 + (i % 2) * 0.22, Math.sin(a) * r, 0, 0, 0, 1, 1.3, 1)); }
+  return merge(parts);
+}
+// Piscante: robô fino que se teleporta; antena em anel e listras roxas
+export function saltaGeo() {
+  const body = 0x2a2440, plate = 0x6a5aa8, glow = 0xd04aff, dark = 0x16131f;
+  const LL = [-0.16, 0.85, 0], LR = [0.16, 0.85, 0], AL = [-0.34, 1.45, 0], AR = [0.34, 1.45, 0], H = [0, 1.7, 0];
+  return merge([
+    Q(box(0.13, 0.8, 0.16), plate, 0, 1, LL, -0.16, 0.45, 0), Q(box(0.2, 0.08, 0.3), dark, 0, 1, LL, -0.16, 0.04, 0.05),
+    Q(box(0.13, 0.8, 0.16), plate, 0, 2, LR, 0.16, 0.45, 0), Q(box(0.2, 0.08, 0.3), dark, 0, 2, LR, 0.16, 0.04, 0.05),
+    Q(box(0.46, 0.6, 0.32), body, 0, 0, O, 0, 1.18, 0), Q(box(0.48, 0.08, 0.34), glow, 2.4, 0, O, 0, 1.0, 0), Q(box(0.48, 0.08, 0.34), glow, 2.4, 0, O, 0, 1.36, 0),
+    Q(box(0.1, 0.5, 0.12), plate, 0, 3, AL, -0.34, 1.2, 0.06), Q(box(0.1, 0.5, 0.12), plate, 0, 4, AR, 0.34, 1.2, 0.06),
+    Q(sph(0.2, 12, 8), body, 0, 5, H, 0, 1.68, 0.02), Q(box(0.3, 0.07, 0.05), glow, 4.5, 5, H, 0, 1.7, 0.2),
+    Q(new THREE.TorusGeometry(0.36, 0.035, 6, 24), glow, 3.2, 6, H, 0, 2.02, 0, Math.PI / 2), // anel de teleporte (lido de cima)
+  ]);
+}
+// Robô Médico: redondo e branco, com uma cruz verde em cima (fácil de achar e derrubar primeiro)
+export function medicoGeo() {
+  const white = 0xe8eef4, gray = 0x8a93a3, green = 0x3aff7a, dark = 0x1e232c;
+  const LL = [-0.2, 0.5, 0], LR = [0.2, 0.5, 0], AL = [-0.48, 1.0, 0], AR = [0.48, 1.0, 0], H = [0, 1.35, 0];
+  return merge([
+    Q(box(0.16, 0.42, 0.18), gray, 0, 1, LL, -0.2, 0.24, 0), Q(box(0.16, 0.42, 0.18), gray, 0, 2, LR, 0.2, 0.24, 0),
+    Q(sph(0.5, 16, 12), white, 0, 0, O, 0, 0.92, 0, 0, 0, 0, 1, 0.85, 1),
+    Q(box(0.56, 0.1, 0.16), green, 2.6, 0, O, 0, 1.36, 0), Q(box(0.16, 0.1, 0.56), green, 2.6, 0, O, 0, 1.36, 0), // cruz em cima
+    Q(box(0.36, 0.14, 0.04), green, 3, 5, H, 0, 1.0, 0.45), // visor
+    Q(cyl(0.03, 0.03, 0.4, 6), dark, 0, 6, H, 0.2, 1.52, -0.15), Q(sph(0.07, 8, 6), green, 4, 6, H, 0.2, 1.74, -0.15),
+    Q(box(0.12, 0.42, 0.12), gray, 0, 3, AL, -0.52, 0.85, 0.08), Q(box(0.12, 0.42, 0.12), gray, 0, 4, AR, 0.52, 0.85, 0.08),
+    Q(box(0.14, 0.14, 0.2), green, 2, 4, AR, 0.52, 0.62, 0.16),
+  ]);
+}
+
 // trechos GLSL do esqueleto procedural
 const ANIM_HEAD = `
 attribute float part; attribute vec3 pivot; attribute vec4 iAnim;
@@ -162,6 +220,8 @@ export const SKINS = {
   gelo: { nome: 'Gelo', suit: 0xd7e6f5, armor: 0x3aa0ff, cape: 0x1f5fd8, visor: 0x7ff3ff, preco: 250 },
   dourado: { nome: 'Dourado', suit: 0xf2f2f2, armor: 0xffc23a, cape: 0xffb020, visor: 0xffe08a, preco: 300 },
   rubi: { nome: 'Rubi', suit: 0x7a0f1f, armor: 0xffd76a, cape: 0x1b1e27, visor: 0xff4a4a, preco: -1, conquista: 'chefe5' },
+  toxico: { nome: 'Tóxico', suit: 0x1c2a1e, armor: 0x7dff3a, cape: 0x2a6a1a, visor: 0xc8ff3a, preco: 350 },
+  cosmico: { nome: 'Cósmico', suit: 0x14123a, armor: 0x3af0ff, cape: 0x7a2aff, visor: 0xffffff, preco: -1, conquista: 'elite10' },
 };
 export function buildHero() {
   const g = new THREE.Group();

@@ -46,7 +46,8 @@ async function chromiumRun() {
 
   await page.goto(BASE + '?debug=1&nosw=1', { waitUntil: 'load' });
   check(await waitFor(() => window.__CB && __CB.state === 'title'), 'carrega e mostra o título');
-  check(await E(() => document.querySelectorAll('#arena-sel button').length === 2), 'seletor de arenas no título');
+  check(await E(() => document.querySelectorAll('#arena-sel button').length === 3), 'seletor de arenas no título (3 arenas)');
+  check(await E(() => /Onda 15/.test(document.querySelector('#arena-sel button[data-a="lab"]').textContent)), 'Laboratório mostra o requisito (onda 15)');
   check(await E(() => document.querySelector('#arena-sel button[data-a="porto"]').classList.contains('lock')), 'Porto Ferrugem começa bloqueado');
 
   await page.tap('#btn-jogar');
@@ -95,6 +96,8 @@ async function chromiumRun() {
   check(perf.calls > 0 && perf.triangles > 0, 'renderiza a arena 2', `${perf.calls} draw calls, ${perf.triangles} triângulos`);
   await page.screenshot({ path: path.join(OUT, 'porto.png') });
 
+  await v8Checks(page, E, waitFor, '', true);
+
   // fim de jogo: moedas salvas no aparelho
   await E(() => { window.__CBgod = false; __CB.hurt(9999); });
   check(await waitFor(() => __CB.state === 'over', 30000), 'tela de fim de jogo');
@@ -116,6 +119,65 @@ async function chromiumRun() {
   } catch (e) {
     console.error(e); fails++;
   } finally { await browser.close(); }
+}
+
+// v8: 3ª arena com laser de varredura, inimigos novos, elites, chefes novos, bumerangue e cartas novas
+async function v8Checks(page, E, waitFor, tag, full) {
+  const bossReady = () => waitFor(() => __CB.cine === null && __CB.bossPos && __CB.bossPos.enter <= 0, 40000);
+  await E(() => { const m = __CB.meta; m.maxWave = Math.max(m.maxWave, 16); __CB.setMeta(m); __CB.arena('lab'); });
+  check(await E(() => __CB.arenaNow === 'lab' && !document.querySelector('#arena-sel button[data-a="lab"]').classList.contains('lock')), tag + 'Laboratório libera na onda 15');
+  await E(() => { window.__CBgod = false; __CB.skipTo(2); __CB.clearQueue(); __CB.killAll(); __CB.anchor(); __CB.teleport(6, 0); });
+  await E(() => __CB.sweepNow('x', 1, -6));
+  check(await E(() => __CB.sweeps.length === 1 && __CB.sweeps[0].ph === 'warn'), tag + 'laser de varredura avisa antes (faixa verde = abertura)');
+  const hp0 = await E(() => __CB.hp);
+  check(await waitFor(() => __CB.sweeps.length === 0, 30000), tag + 'varredura atravessa a arena');
+  check((await E(() => __CB.hp)) < hp0, tag + 'laser fere quem fica fora da abertura', `${hp0} → ${await E(() => __CB.hp)}`);
+  await E(() => { window.__CBgod = true; __CB.teleport(0, 0); for (const [t, x, z] of [['drone', -4, 6], ['ninho', 5, 7], ['salta', -6, -6], ['medico', 6, -5], ['zombie', 7, -5]]) __CB.spawn(t, x, z); __CB.spawnElite('zombie', 'explosivo', -3, -7); });
+  check(await waitFor(() => { const t = __CB.types; return t.drone && t.ninho && t.salta && t.medico; }, 8000), tag + 'Drone, Ninho, Piscante e Robô Médico nascem', JSON.stringify(await E(() => __CB.types)));
+  await waitFor(() => __CB.auraN > 0, 3000);
+  const el = await E(() => ({ e: __CB.elites, a: __CB.auraN }));
+  check(el.e.length === 1 && el.a === 1, tag + 'elite com aura', JSON.stringify(el));
+  await E(() => { __CB.toughType('ninho'); __CB.toughType('medico'); __CB.toughType('salta'); __CB.speed(3); });
+  check(await waitFor(() => __CB.eFlags().some((e) => e.minor), 20000), tag + 'Ninho solta zumbis');
+  if (full) {
+    check(await waitFor(() => __CB.eFlags().some((e) => e.prot > 0), 20000), tag + 'Robô Médico protege os aliados');
+    check(await waitFor(() => __CB.eFlags().some((e) => e.tp > 0), 20000), tag + 'Piscante avisa (círculo roxo) e se teleporta');
+  }
+  await E(() => __CB.speed(1));
+  await page.screenshot({ path: path.join(OUT, tag ? 'webkit-lab.png' : 'lab.png') });
+  await E(() => { __CB.keepOnly([]); __CB.spawnElite('zombie', 'blindado', 0, 5); __CB.killAll(); __CB.anchor(); });
+  check(await waitFor(() => __CB.bonusCoins >= 4, 4000), tag + 'elite dá moedas extras', String(await E(() => __CB.bonusCoins)));
+  // chefe Núcleo Triplo: satélites protegem o corpo; fase 2 traz os satélites de volta
+  await E(() => { __CB.forceBoss('nucleo'); __CB.skipTo(5); __CB.clearQueue(); __CB.anchor(); });
+  check(await bossReady(), tag + 'chefe Núcleo Triplo aparece');
+  let bx = await E(() => __CB.bossX);
+  check(bx && bx.mech === 'nucleo' && bx.sats === 3 && bx.bubble, tag + 'Núcleo Triplo com 3 satélites e escudo', JSON.stringify(bx));
+  await E(() => __CB.hitSats(1e6)); bx = await E(() => __CB.bossX);
+  check(bx.sats === 0 && !bx.bubble, tag + 'derrubar os satélites expõe o núcleo');
+  await E(() => __CB.bossHalf()); bx = await E(() => __CB.bossX);
+  check(bx.p2 && bx.sats === 3, tag + 'fase 2 do Núcleo: satélites voltam');
+  await E(() => __CB.killAll()); check(await waitFor(() => !__CB.bossX, 5000), tag + 'Núcleo derrotado');
+  if (full) {
+    await E(() => { __CB.forceBoss('gemeos'); __CB.skipTo(5); __CB.clearQueue(); __CB.anchor(); });
+    check(await bossReady(), 'Gêmeos Faísca aparecem');
+    check(!!(await E(() => __CB.bossX.twin)), 'dois corpos com vida compartilhada');
+    await E(() => { __CB.bossHalf(); __CB.speed(3); });
+    check(await waitFor(() => { __CB.bossHeal(); return __CB.bossX && __CB.bossX.teth === 'on'; }, 30000), 'fase 2 dos Gêmeos: fio de energia entre eles');
+    await E(() => { __CB.speed(1); __CB.killAll(); });
+    check(await waitFor(() => !__CB.bossX && __CB.meta.ach.gemeos, 5000), 'Gêmeos derrotados (conquista)');
+    await E(() => { __CB.forceBoss('volt'); __CB.skipTo(5); __CB.clearQueue(); __CB.anchor(); });
+    check(await bossReady(), 'Doutor Volt aparece');
+    await E(() => { __CB.bossHalf(); }); await sleep(1600); await E(() => { __CB.bossHeal(); __CB.forceAct('varredura'); });
+    check(await waitFor(() => __CB.sweeps.length === 2, 8000), 'Doutor Volt (fase 2) liga 2 lasers cruzados');
+    await page.screenshot({ path: path.join(OUT, 'volt.png') });
+    await E(() => __CB.killAll()); await waitFor(() => !__CB.bossX, 5000);
+    // bumerangue e cartas novas
+    await E(() => { __CB.clearQueue(); __CB.weapon('bume'); __CB.giveUp('orbita', 1); __CB.giveUp('gelo', 1); __CB.giveUp('raio', 1); for (let i = 0; i < 3; i++) __CB.spawn('zombie', i * 2 - 2, 7); });
+    check(await waitFor(() => __CB.bumes > 0, 8000), 'BUMERANGUE vai e volta');
+    check(await waitFor(() => { const s = __CB.stats; return s.orbit >= 1 && __CB.orbN === 1 + s.orbit && s.slow >= 1 && s.chain >= 1; }, 8000), 'Lâminas Orbitais, Tiro Gélido e Corrente Elétrica', JSON.stringify(await E(() => ({ orbN: __CB.orbN, orbit: __CB.stats.orbit, slow: __CB.stats.slow, chain: __CB.stats.chain, st: __CB.state }))));
+    check(await E(() => __CB.bossRot('lab')[0] === 'DOUTOR VOLT' && __CB.bossRot('cidade')[0] === 'TRITURADOR'), 'rodízio de chefes por arena');
+  }
+  await E(() => { __CB.weapon('blaster'); });
 }
 
 // CONTINUAR: recomeça a onda com vida cheia; só 1 por partida; moedas não contam 2x
@@ -182,6 +244,8 @@ async function webkitRun() {
     check(await waitFor(() => __CB.cine === null && __CB.boss, 40000), '[webkit] chefe aparece');
     await E(() => __CB.bossHalf());
     check(await E(() => __CB.p2 && __CB.p2.p2), '[webkit] fase 2 do chefe');
+    await E(() => { __CB.clearQueue(); __CB.anchor(); __CB.killAll(); }); await waitFor(() => !__CB.boss, 5000);
+    await v8Checks(page, E, waitFor, '[webkit] ', false);
     await E(() => { window.__CBgod = false; __CB.hurt(9999); });
     check(await waitFor(() => __CB.state === 'over', 30000), '[webkit] fim de jogo');
     await continueChecks(page, E, waitFor, '[webkit] ');

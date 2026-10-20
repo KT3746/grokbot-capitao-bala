@@ -1,6 +1,6 @@
 // CAPITÃO BALA — progresso permanente salvo no aparelho (moedas, melhorias, visuais, conquistas, arenas).
 const KEY = 'cb-meta';
-const DEF = () => ({ v: 1, coins: 0, earned: 0, up: {}, skins: ['classico'], skin: 'classico', ach: {}, kills: 0, bosses: 0, maxWave: 0, runs: 0, arena: 'cidade' });
+const DEF = () => ({ v: 1, coins: 0, earned: 0, up: {}, skins: ['classico'], skin: 'classico', ach: {}, kills: 0, bosses: 0, maxWave: 0, runs: 0, arena: 'cidade', elites: 0, bossTypes: [] });
 export const meta = (() => {
   try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && typeof j === 'object') return Object.assign(DEF(), j); } catch (_) {}
   return DEF();
@@ -21,6 +21,7 @@ export const SHOP = [
 export const ARENAS = {
   cidade: { nome: 'Praça Neon', icon: '🌃', req: 0, desc: 'A arena original, cercada de prédios.' },
   porto: { nome: 'Porto Ferrugem', icon: '⚓', req: 10, desc: 'Docas industriais, caixotes no centro e mais inimigos especiais.' },
+  lab: { nome: 'Laboratório', icon: '🧪', req: 15, desc: 'Laboratório subterrâneo com lasers de varredura e muitos drones.' },
 };
 export const ACH = [
   { id: 'abate1', nome: 'Primeiro Abate', desc: 'Derrote seu primeiro inimigo.', icon: '🎯', moedas: 10 },
@@ -39,6 +40,14 @@ export const ACH = [
   { id: 'porto', nome: 'Novos Ares', desc: 'Jogue uma partida no Porto Ferrugem.', icon: '⚓', moedas: 20 },
   { id: 'estilo', nome: 'Estiloso', desc: 'Compre um visual novo.', icon: '🎨', moedas: 20 },
   { id: 'poupanca', nome: 'Poupança', desc: 'Ganhe 1.000 moedas no total.', icon: '🪙', moedas: 50 },
+  { id: 'lab', nome: 'Cientista de Campo', desc: 'Jogue uma partida no Laboratório (libera na onda 15).', icon: '🧪', moedas: 40 },
+  { id: 'onda20', nome: 'Inabalável', desc: 'Chegue à onda 20.', icon: '🌟', moedas: 150 },
+  { id: 'elite10', nome: 'Caçador de Elite', desc: 'Derrote 10 inimigos de elite (com aura) no total. Libera o visual Cósmico.', icon: '💠', moedas: 60 },
+  { id: 'ninho', nome: 'Dedetizador', desc: 'Destrua um Ninho Zumbi.', icon: '🪺', moedas: 25 },
+  { id: 'laser10', nome: 'Dança dos Lasers', desc: 'Escape de 10 varreduras de laser seguidas sem ser atingido.', icon: '🕺', moedas: 50 },
+  { id: 'bume5', nome: 'Vai e Volta', desc: 'Derrote 5 inimigos com um único bumerangue.', icon: '🪃', moedas: 40 },
+  { id: 'gemeos', nome: 'Separados no Nascimento', desc: 'Derrote os Gêmeos Faísca.', icon: '⚡', moedas: 50 },
+  { id: 'chefes8', nome: 'Enciclopédia de Chefes', desc: 'Derrote os 8 chefes diferentes.', icon: '📚', moedas: 200 },
 ];
 export const ACH_BY = Object.fromEntries(ACH.map((a) => [a.id, a]));
 export const lvl = (id) => meta.up[id] || 0;

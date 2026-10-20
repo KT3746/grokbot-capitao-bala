@@ -131,6 +131,9 @@ export const sfx = {
   blast() { noise(0.3, 0.35, 1100, 0.8, 'lowpass', 0, sfxGain, 120); tone('sine', 140, 40, 0.2, 0.2); },
   tick() { tone('square', 1500, 1500, 0.025, 0.035); },
   roar() { duck(0.25, 1.1); tone('sawtooth', 120, 48, 1.3, 0.32); tone('square', 92, 40, 1.3, 0.14); tone('sawtooth', 180, 70, 0.9, 0.12, 0.15); noise(1.3, 0.35, 420, 1.2, 'bandpass', 0, sfxGain, 120); },
+  zap() { tone('sawtooth', 2400, 900, 0.07, 0.05); noise(0.06, 0.12, 6000, 3, 'bandpass'); },
+  sweep() { tone('sawtooth', 160, 220, 0.9, 0.08); tone('square', 320, 300, 0.9, 0.03); noise(0.5, 0.08, 2600, 2, 'bandpass'); },
+  bume() { tone('triangle', 500, 900, 0.14, 0.08); noise(0.12, 0.1, 2000, 1.5, 'bandpass', 0, sfxGain, 4000); },
   meteor() { noise(0.5, 0.5, 800, 0.7, 'lowpass', 0, sfxGain, 80); tone('sine', 110, 35, 0.4, 0.4); },
   record() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.1)); },
 };

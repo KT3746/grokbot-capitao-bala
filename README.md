@@ -2,7 +2,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192200
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192330
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
@@ -29,6 +29,17 @@ npx playwright-core install webkit   # opcional: adiciona a passada iPhone/Safar
 Não precisa de servidor: o script sobe um servidor local sozinho. Uma captura da arena 2 fica em `tests/out/`.
 
 ## Novidades
+
+### Novidades v8 (19/10/2026)
+
+- **3ª arena: Laboratório** 🧪 — subterrâneo com tanques de ensaio em hexágono e cubas brilhantes. Libera ao chegar na **onda 15**; o seletor de arenas mostra o requisito (🔒 Onda N) de cada uma.
+- **Perigo do Laboratório: laser de varredura** — o feixe pisca antes, atravessa a arena e deixa uma **faixa verde** (abertura) segura; também dá para pular com a ESQUIVA. Fere inimigos no caminho.
+- **4 inimigos novos**, cada um apresentado no aviso da onda: **Drone Vigia** (voa por cima dos blocos e atira), **Ninho Zumbi** (parado, solta zumbis até ser destruído), **Piscante** (teleporta; o círculo roxo mostra onde vai reaparecer) e **Robô Médico** (cura e protege os vizinhos — derrube primeiro). A estreia de cada um muda conforme a arena.
+- **3 chefes novos com fase 2**: **Núcleo Triplo** (escudo enquanto os 3 satélites estiverem vivos; na fase 2 eles voltam), **Gêmeos Faísca** (dois corpos, uma vida; na fase 2 um fio de energia liga os dois) e **Doutor Volt** (comanda os lasers; na fase 2 liga dois cruzados). Cada arena tem a sua **ordem de chefes**.
+- **Inimigos de elite** (VELOZ, BLINDADO, EXPLOSIVO) com **aura colorida**: mais vida, 3× pontos, +4 moedas e mais itens. O EXPLOSIVO estoura ao cair.
+- **Arma nova: BUMERANGUE** 🪃 (vai, atravessa tudo e volta) e **6 cartas novas**: Tiro Gélido, Pele de Aço, Pé-de-Coelho, Adrenalina, Corrente Elétrica e Lâminas Orbitais.
+- **8 conquistas novas** e **2 visuais novos** do herói: **Tóxico** (loja) e **Cósmico** (conquista Caçador de Elite).
+- Robô de teste rebalanceado nas 3 arenas; teste automático cobre a arena nova, inimigos, elites, chefes, bumerangue e cartas (Chromium + WebKit/iPhone).
 
 ### v7.1 (19/10/2026)
 - **CONTINUAR depois de morrer**: no fim de jogo, o botão verde **CONTINUAR (onda N)** aparece acima de "Jogar de novo".
