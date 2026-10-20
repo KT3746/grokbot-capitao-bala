@@ -14,7 +14,7 @@
 <meta name="format-detection" content="telephone=no" />
 <title>CAPITÃO BALA</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="css/style.css?v=202610201130" />
+<link rel="stylesheet" href="css/style.css?v=202610201300" />
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js", "three/addons/": "./js/vendor/addons/" } }
 </script>
@@ -62,7 +62,10 @@
   <div class="menu">
     <button id="btn-retomar" class="btn btn-continue" hidden>⏯ Retomar partida</button>
     <button id="btn-jogar" class="btn btn-primary">▶ JOGAR</button>
-    <button id="btn-diario" class="btn btn-daily">📅 Desafio Diário<small id="diario-sub">mesmo desafio para todos hoje</small></button>
+    <div class="menu-row modos">
+      <button id="btn-historia" class="btn btn-story">📖 História<small id="hist-sub">15 etapas</small></button>
+      <button id="btn-diario" class="btn btn-daily">📅 Diário<small id="diario-sub">mesmo desafio para todos hoje</small></button>
+    </div>
     <div id="arena-sel" class="arena-sel" role="group" aria-label="Arena"></div>
     <button id="btn-loja" class="btn btn-ghost">🛒 Loja &amp; Conquistas <span class="coin-badge" id="titulo-moedas">0</span></button>
     <div class="menu-row">
@@ -167,6 +170,52 @@
   </div>
 </section>
 
+<section id="tela-historia" class="screen panel-screen" hidden>
+  <div class="panel mapa">
+    <div class="loja-head"><h2>📖 Modo História</h2><div class="coins" id="mapa-estrelas">★ 0/45</div></div>
+    <p class="mapa-sub">O Barão Parafuso quer transformar a cidade na oficina dele. Só o Capitão Bala pode impedir!</p>
+    <div id="mapa-caps" class="mapa-caps"></div>
+    <div id="mapa-armas" class="mapa-armas"></div>
+    <div class="menu-row"><button id="btn-mapa-fim" class="btn btn-ghost small" hidden>🏆 Final</button><button id="btn-mapa-ok" class="btn btn-primary small">Voltar</button></div>
+  </div>
+</section>
+
+<section id="tela-dialogo" class="screen dialogo-screen" hidden>
+  <div class="dlg-box">
+    <div id="dlg-retrato" class="dlg-retrato"></div>
+    <div class="dlg-corpo"><div id="dlg-nome" class="dlg-nome"></div><p id="dlg-txt" class="dlg-txt"></p><div class="dlg-pe"><span id="dlg-n"></span><span class="dlg-toque">Toque para continuar ▶</span></div></div>
+    <button id="dlg-pular" class="dlg-pular" aria-label="Pular diálogo">Pular ⏭</button>
+  </div>
+</section>
+
+<section id="tela-etapa" class="screen panel-screen" hidden>
+  <div class="panel etapa">
+    <h2 id="etapa-titulo">ETAPA CONCLUÍDA!</h2>
+    <div id="etapa-nome" class="etapa-nome"></div>
+    <div id="etapa-estrelas" class="etapa-estrelas"></div>
+    <ul id="etapa-crit" class="etapa-crit"></ul>
+    <div id="etapa-premio" class="etapa-premio"></div>
+    <button id="btn-etapa-prox" class="btn btn-primary">▶ Próxima etapa</button>
+    <div class="menu-row"><button id="btn-etapa-rep" class="btn btn-ghost small">↻ Repetir</button><button id="btn-etapa-mapa" class="btn btn-ghost small">🗺️ Mapa</button></div>
+  </div>
+</section>
+
+<section id="tela-final" class="screen panel-screen" hidden>
+  <div class="panel final">
+    <div class="final-k">FIM</div>
+    <h2>A cidade está salva!</h2>
+    <div class="final-trio" aria-hidden="true"><i class="p-cap">🦸</i><i class="p-lumi">👩‍🔬</i><i class="p-barao">🎩</i></div>
+    <div class="creditos"><div class="cr-rolo">
+      <p><b>CAPITÃO BALA — Modo História</b></p>
+      <p>Capitão Bala · o herói<br>Dra. Lumi · a cientista do rádio<br>Barão Parafuso · o inventor trapalhão</p>
+      <p>Arte, música e efeitos<br>feitos em código, no navegador</p>
+      <p>Obrigado por jogar!</p>
+    </div></div>
+    <div class="final-est">Estrelas: <b id="fim-hist-estrelas">★ 0/45</b> · visual <b>⭐ Lendário</b> liberado na Loja</div>
+    <button id="btn-final-ok" class="btn btn-primary">🗺️ Voltar ao mapa</button>
+  </div>
+</section>
+
 <section id="tela-fim" class="screen panel-screen" hidden>
   <div class="panel">
     <h2 id="fim-titulo">FIM DE JOGO</h2>
@@ -192,6 +241,6 @@
 
 <div id="loading">Carregando arena…</div>
 <div id="erro" hidden></div>
-<script type="module" src="js/main.js?v=202610201130"></script>
+<script type="module" src="js/main.js?v=202610201300"></script>
 </body>
 </html>

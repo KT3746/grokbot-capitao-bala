@@ -221,6 +221,7 @@ export const SKINS = {
   dourado: { nome: 'Dourado', suit: 0xf2f2f2, armor: 0xffc23a, cape: 0xffb020, visor: 0xffe08a, preco: 300 },
   rubi: { nome: 'Rubi', suit: 0x7a0f1f, armor: 0xffd76a, cape: 0x1b1e27, visor: 0xff4a4a, preco: -1, conquista: 'chefe5' },
   toxico: { nome: 'Tóxico', suit: 0x1c2a1e, armor: 0x7dff3a, cape: 0x2a6a1a, visor: 0xc8ff3a, preco: 350 },
+  lendario: { nome: 'Lendário', suit: 0xf4f1ea, armor: 0xffd23a, cape: 0x2a6aff, visor: 0xff3adf, preco: -1, conquista: 'historia' },
   cosmico: { nome: 'Cósmico', suit: 0x14123a, armor: 0x3af0ff, cape: 0x7a2aff, visor: 0xffffff, preco: -1, conquista: 'elite10' },
 };
 export function buildHero() {

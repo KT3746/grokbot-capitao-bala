@@ -5,10 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610201130';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610201300';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202610201130';
-import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610201130';
+import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202610201300';
+import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610201300';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -493,7 +493,7 @@ function startSweep(axis, dir, gap, i = 0, warn = 1.2) {
 }
 function stopSweeps() { for (const S of sweeps) { S.on = false; S.a.visible = S.b.visible = S.lane.visible = false; } }
 function updateSweeps(dt) {
-  if (arena === 'lab' && state === 'playing' && !demo && !cine && waveState === 'fight' && wave >= 2 && !(boss && boss.type.mech === 'volt')) {
+  if (arena === 'lab' && state === 'playing' && !demo && !cine && waveState === 'fight' && wave >= 2 && !(boss && (boss.type.mech === 'volt' || boss.type.mech === 'barao'))) {
     hazT -= dt;
     if (hazT <= 0) {
       hazT = Math.max(7.5, 11 - wave * 0.12) * (boss ? 1.35 : 1);
@@ -1155,6 +1155,7 @@ const BOSS_TYPES = [
   { nome: 'NÚCLEO TRIPLO', mech: 'nucleo', ordem: ['aimed', 'radial', 'summon', 'spiral'], core: 0x3af0ff, red: 0x10506a, escala: 1.1, summon: ['drone', 'zombie'] },
   { nome: 'GÊMEOS FAÍSCA', mech: 'gemeos', ordem: ['aimed', 'charge', 'radial', 'summon'], core: 0xffd23a, red: 0x6a5010, escala: 0.85, summon: ['fast', 'salta'] },
   { nome: 'DOUTOR VOLT', mech: 'volt', ordem: ['varredura', 'summon', 'aimed', 'varredura', 'radial'], core: 0xb04aff, red: 0x40106a, escala: 1.1, summon: ['drone', 'medico', 'zombie'] },
+  { nome: 'BARÃO PARAFUSO', mech: 'barao', ordem: ['aimed', 'charge', 'varredura', 'radial', 'summon', 'spiral', 'slam'], core: 0xff2ad4, red: 0x4a0a5a, escala: 1.3, summon: ['drone', 'fast', 'zombie'], so: true },
 ];
 // ordem dos chefes em cada arena (índices de BOSS_TYPES); depois do 8º, repete com número romano
 const BOSS_ROT = { cidade: [0, 1, 2, 5, 3, 6, 4, 7], porto: [1, 5, 0, 6, 2, 3, 7, 4], lab: [7, 5, 6, 3, 4, 0, 1, 2] };
@@ -1617,7 +1618,7 @@ function killEnemy(e, T) {
   splat(e.x, e.z, T.goo, e.type === 'tank' ? 2.4 : 1.3 + Math.random() * 0.4);
   if (e.type === 'bomba') bombBlast(e.x, e.z, e);
   if (corpses.length < 60) { const l = Math.hypot(e.kx, e.kz) || 1, kk = Math.min(4, l); corpses.push({ type: e.type, ph: e.ph, x: e.x, z: e.z, face: e.face, t: 0, vx: (e.kx / l) * kk, vz: (e.kz / l) * kk, tilt: Math.random() < 0.5 ? -1 : 1 }); }
-  kills++;
+  kills++; storyKill(e);
   combo++; comboT = 2.2; maxCombo = Math.max(maxCombo, combo);
   const mult = Math.min(5, 1 + Math.floor(combo / 5));
   const pts = Math.round(T.score * mult * (e.elite ? 3 : 1) * (e.minor ? 0.5 : 1));
@@ -1731,7 +1732,7 @@ function startWave(n, quick = false) {
   if (dm('pesados')) { waveScale.hp *= 1.4; waveScale.sp *= 0.9; }
   if (dm('enxame')) waveScale.hp *= 0.75;
   waveTime = 0; waveTaken = 0; tempoT = 0;
-  const bEvery = dm('chefes2') ? 3 : 5, isBoss = n % bEvery === 0;
+  const bEvery = dm('chefes2') ? 3 : 5, isBoss = story.on ? story.def.tipo === 'chefe' && n === story.def.wave : n % bEvery === 0;
   if (!demo) {
     if (n >= 5) unlockAch('onda5'); if (n >= 10) unlockAch('onda10'); if (n >= 15) unlockAch('onda15');
     if (n >= 20) unlockAch('onda20');
@@ -1754,7 +1755,7 @@ function startWave(n, quick = false) {
   if (!isBoss) for (const k in ST) { const s0 = ST[k]; if (n === s0 || (s0 % 5 === 0 && n === s0 + 1)) { tip = INTRO_TIP[k]; if (k !== 'ninho' || !nNinho) spawnQueue.splice(Math.min(spawnQueue.length, 3), 0, k); } }
   spawnT = isBoss ? 3.6 : 1.2;
   if (isBoss) {
-    spawnBoss(n / bEvery);
+    spawnBoss(story.on ? story.def.bi : n / bEvery);
     if (!demo && !quick) startBossCine(); else showBanner(`CHEFE!<small>${boss.name}${quick ? ' — vida cheia, de novo!' : ''}</small>`, 'boss'); // ao continuar, sem a cinemática longa
     sfx.boss(); vibrate([60, 40, 60]);
   } else {
@@ -1774,7 +1775,7 @@ function spawnBoss(bi) {
   B.coreMat.color.setHex(type.core); B.coreMat.emissive.setHex(type.core); B.eye.emissive.setHex(type.core);
   B.red.color.setHex(type.red); B.red.emissive.setHex(type.core); B.red.emissiveIntensity = 0.5;
   B.g.scale.setScalar(type.escala); B.fury.visible = false;
-  const hp = 1500 * (1 + 0.8 * (bi - 1)) * (type.mech === 'gemeos' ? 1.1 : 1);
+  const hp = 1500 * (1 + 0.8 * (bi - 1)) * (type.mech === 'gemeos' ? 1.1 : type.mech === 'barao' ? 1.4 : 1);
   boss = { ...B, bi, type, x: 0, z: -14, y: 0, hp, maxHp: hp, sats: type.mech === 'nucleo', twin: null, teth: { ph: 'off', t: 6, x0: 0, z0: 0, x1: 0, z1: 0, tele: null }, satSp: 1.1, r: 2.1 * type.escala, t: 0, enter: 2.2, actT: 2.5, act: null, actStep: 0, actTimer: 0, cvx: 0, cvz: 0, flash: 0, face: 0, shots: 0, spA: 0, tele: null, pts: [], tx: 0, tz: 0, sx0: 0, sz0: 0, name: type.nome + (bi > rot.length ? ' ' + roman(Math.floor((bi - 1) / rot.length) + 1) : ''), cycle: 0, p2: false, roarT: 0, combo: false };
   if (type.mech === 'nucleo') spawnSats(boss, 1);
   voltDeco.visible = type.mech === 'volt';
@@ -2010,12 +2011,21 @@ function startPhase2(b) {
   addShake(1); screenFlash('boss'); boomLight.position.set(b.x, 3, b.z); boomI = 380;
   for (let i = 0; i < 3; i++) setTimeout(() => { if (boss === b) shock(b.x, b.z, 5 + i * 3, [3.5, 0.8, 0.2], 0.55); }, i * 260);
 }
+// Barão Parafuso: 3ª fase — escudo com 3 satélites, mais rápido, lasers e meteoros
+function startPhase3(b) {
+  b.p3 = true; b.sats = true; spawnSats(b, 0.45); b.satSp = 2.1; b.act = null; b.actT = 1.2; b.roarT = 1.3;
+  b.coreMat.color.setHex(0xffffff); b.coreMat.emissive.setHex(0xff2a6a); b.coreMat.emissiveIntensity = 9;
+  if (!demo) { sfx.roar(); vibrate([80, 40, 200]); showBanner('ÚLTIMA FORMA!<small>Derrube os 3 satélites para quebrar o escudo</small>', 'boss'); }
+  addShake(1.2); screenFlash('boss'); for (let i = 0; i < 4; i++) setTimeout(() => { if (boss === b) shock(b.x, b.z, 5 + i * 3, [3.5, 0.6, 2.6], 0.55); }, i * 220);
+}
 function damageBoss(dmg, quiet = false, at = null) {
   const b = boss; if (!b || b.enter > 0) return;
   const crit = Math.random() < stats.crit; if (crit) dmg *= 2;
   if (b.sats && satsAlive()) { dmg *= 0.15; b.shieldHit = 0.25; if (!quiet && Math.random() < 0.15) dmgNum(b.x, 4.8, b.z, 'ESCUDO!', ''); } // escudo do Núcleo: derrube os satélites
   b.hp -= dmg; b.flash = Math.max(b.flash, 0.35);
-  if (!b.p2 && b.hp > 0 && b.hp <= b.maxHp * 0.5) startPhase2(b);
+  const brz = b.type.mech === 'barao';
+  if (!b.p2 && b.hp > 0 && b.hp <= b.maxHp * (brz ? 0.66 : 0.5)) startPhase2(b);
+  else if (brz && b.p2 && !b.p3 && b.hp > 0 && b.hp <= b.maxHp * 0.33) startPhase3(b);
   if (!quiet) emit(b.x + rand(-0.8, 0.8), 2 + rand(0, 2), b.z + rand(-0.8, 0.8), rand(-5, 5), rand(1, 5), rand(-5, 5), [5, 4, 2.4], 0.1, 0.9, 0.1, -10, 3);
   if (!quiet || crit) dmgNum((at ? at.x : b.x) + rand(-1, 1), 4.5, at ? at.z : b.z, String(Math.round(dmg)), crit ? 'crit' : '');
   const n = performance.now(); if (n - lastHitSfx > 50) { lastHitSfx = n; sfx.metal(); }
@@ -2047,6 +2057,7 @@ function killBoss() {
   $('boss-wrap').hidden = true; document.body.classList.remove('has-boss');
   dropItem(b.x - 1.5, b.z, 'health'); dropItem(b.x + 1.5, b.z, randomWeaponItem());
   showBanner('CHEFE DERROTADO!<small>+' + 5000 * b.bi + ' pontos</small>');
+  if (story.on && story.def.tipo === 'chefe') storyWin();
 }
 
 // ---------------- Atualização principal ----------------
@@ -2151,6 +2162,7 @@ function updateEnemies(dt) {
     if (e.spawn > 0) { e.spawn -= dt; continue; }
     const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz) || 1;
     let tx = dx / d, tz = dz / d, sp = e.speed;
+    if (e.gen && story.gen) { const gx = story.gen.x - e.x, gz = story.gen.z - e.z, gd = Math.hypot(gx, gz) || 1; tx = gx / gd; tz = gz / gd; if (gd < e.r + 1.4) { sp = 0; genHit(e, dt); } }
     if (e.type === 'fast') { const w = Math.sin(e.t * 3.5 + e.seed) * 0.75; const ox = -tz * w, oz = tx * w; tx += ox; tz += oz; }
     if (e.type === 'tank') {
       if (d < 7) { const s = Math.sin(e.seed) > 0 ? 1 : -1; tx = -tz * s * 0.6; tz = (dx / d) * s * 0.6; }
@@ -2494,7 +2506,7 @@ function updateWaves(dt) {
     if (!demo && wave >= 5 && waveTaken === 0) unlockAch('intocavel');
     const bonus = wave * 250; addScore(bonus);
     if (!dm('semcura')) player.hp = Math.min(player.maxHp, player.hp + 10);
-    dailyWaveDone();
+    dailyWaveDone(); storyWaveDone();
     if (DEBUG) runLog.push({ onda: wave, t: +waveTime.toFixed(1), hp: Math.round(player.hp), max: player.maxHp, dano: Math.round(waveTaken), arma: player.weapon, poderes: runPicks.length });
     showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus}${dm('semcura') ? '' : ' · Vida +10'}</small>`);
     sfx.power();
@@ -2503,7 +2515,7 @@ function updateWaves(dt) {
 let bossZoom = 1;
 // entrada do chefe: barras de cinema, câmera vai até ele e volta, cartão com o nome
 let cine = null;
-const BOSS_LEMA = { 'TRITURADOR': 'Esmaga tudo pelo caminho', 'COLOSSO DE AÇO': 'Pisa forte e faz o chão tremer', 'REI DOS ZUMBIS-ROBÔ': 'Nunca luta sozinho', 'MEGA-DESTRUIDOR': 'Espirais de energia sem fim', 'O IMPLACÁVEL': 'Um pouco de tudo, sem descanso', 'NÚCLEO TRIPLO': 'Derrube os 3 satélites para expor o núcleo', 'GÊMEOS FAÍSCA': 'Dois corpos, uma vida só', 'DOUTOR VOLT': 'Comanda os lasers do laboratório' };
+const BOSS_LEMA = { 'BARÃO PARAFUSO': 'O inventor em pessoa, no seu megatraje', 'TRITURADOR': 'Esmaga tudo pelo caminho', 'COLOSSO DE AÇO': 'Pisa forte e faz o chão tremer', 'REI DOS ZUMBIS-ROBÔ': 'Nunca luta sozinho', 'MEGA-DESTRUIDOR': 'Espirais de energia sem fim', 'O IMPLACÁVEL': 'Um pouco de tudo, sem descanso', 'NÚCLEO TRIPLO': 'Derrube os 3 satélites para expor o núcleo', 'GÊMEOS FAÍSCA': 'Dois corpos, uma vida só', 'DOUTOR VOLT': 'Comanda os lasers do laboratório' };
 function startBossCine() {
   cine = { t: 0, dur: 3.3 };
   $('boss-card').innerHTML = `<small>CHEFE ${boss.bi}</small><b>${boss.name}</b><i>${BOSS_LEMA[boss.type.nome] || 'Prepare-se!'}</i>`;
@@ -2693,10 +2705,11 @@ function updateHud() {
   const left = boss ? -2 : spawnQueue.length + enemies.length;
   const tl = dm('tempo') && waveState === 'fight' ? Math.max(0, Math.ceil(tempoLim() - waveTime)) : -1;
   if (dm('escuro')) updateDark();
+  if (story.on) { const g = storyGoal(), goal = $('hud-goal'); if (goal.textContent !== g) { goal.textContent = g; goal.hidden = false; } }
   if (hud.wave !== wave || hud.left !== left || hud.tl !== tl) {
     hud.wave = wave; hud.left = left; hud.tl = tl;
     $('hud-wave').textContent = 'ONDA ' + wave + (left === -2 ? ' · CHEFE' : waveState === 'fight' && left > 0 ? ' · faltam ' + left : '') + (tl >= 0 ? ` · ⏱ ${tl}s` : '');
-    const goal = $('hud-goal'); const g = daily.on ? (daily.won ? '📅 Desafio cumprido! Faça pontos' : `📅 Meta: vencer a onda ${daily.info.goal}`) : wave <= 2 && waveState === 'fight' ? '🎯 Derrote todos · chefe na onda 5' : '';
+    const goal = $('hud-goal'); const g = story.on ? storyGoal() : daily.on ? (daily.won ? '📅 Desafio cumprido! Faça pontos' : `📅 Meta: vencer a onda ${daily.info.goal}`) : wave <= 2 && waveState === 'fight' ? '🎯 Derrote todos · chefe na onda 5' : '';
     if (goal.textContent !== g) { goal.textContent = g; goal.hidden = !g; }
   }
   const hp = Math.round(player.hp);
@@ -2749,7 +2762,7 @@ async function wakeLock(on) {
   } catch (_) { wakeSentinel = null; }
 }
 // ---------------- Telas ----------------
-const screens = ['tela-titulo', 'tela-tutorial', 'tela-config', 'tela-pausa', 'tela-fim', 'tela-cartas', 'tela-loja', 'tela-arsenal', 'tela-diario'];
+const screens = ['tela-titulo', 'tela-tutorial', 'tela-config', 'tela-pausa', 'tela-fim', 'tela-cartas', 'tela-loja', 'tela-arsenal', 'tela-diario', 'tela-historia', 'tela-dialogo', 'tela-etapa', 'tela-final'];
 // ---- conquistas (com aviso na tela, em fila)
 const achQ = []; let achBusy = false;
 function unlockAch(id) {
@@ -2770,6 +2783,7 @@ function runCoins() { return Math.round((Math.floor(score / 500) + wave * 3 + bo
 const fmt = (n) => n.toLocaleString('pt-BR');
 function paintCoins() { $('titulo-moedas').textContent = fmt(meta.coins); $('loja-moedas').textContent = fmt(meta.coins); }
 function paintArenaSel() {
+  { const S = sMeta(); $('hist-sub').textContent = S.fim ? `★ ${totalStars()}/45 · fim ✓` : `★ ${totalStars()}/45`; }
   { const day = dayOf(dNow()), D = dMeta(), R = D.days[day], st = dailyStreakNow(day); $('diario-sub').textContent = `#${dailyInfo(day).num} · ${R && R.done ? '✓ cumprido hoje' : R ? 'tente de novo!' : 'novo hoje!'}${st ? ' · 🔥 ' + st : ''}`; }
   $('arena-sel').innerHTML = Object.entries(ARENAS).map(([id, A]) => { const ok = arenaUnlocked(id), b = meta.aw[id] || 0; return `<button data-a="${id}" class="ar-${id}${arena === id ? ' on' : ''}${ok ? '' : ' lock'}" aria-pressed="${arena === id}" aria-label="${A.nome}"><span class="ar-art" aria-hidden="true"><i>${ok ? A.icon : '🔒'}</i></span><span class="ar-n">${A.nome}</span><small>${ok ? (b ? `🏁 Melhor: onda ${b}` : 'Nova!') : `🔒 Onda ${A.req}`}</small></button>`; }).join('');
 }
@@ -2886,7 +2900,7 @@ function dailyInfo(day) {
   const goal = 8 + Math.floor(r() * 5);
   return { day, arena: ar, weapon, mods: mods.map((m) => m.id), goal, num: Math.floor((Date.UTC(...day.split('-').map((v, i) => (i === 1 ? v - 1 : +v))) - Date.UTC(2026, 9, 20)) / 864e5) + 1 };
 }
-const dm = (id) => daily.on && daily.info.mods.includes(id);
+const dm = (id) => (daily.on && daily.info.mods.includes(id)) || (story.on && !!story.def && !!story.def.mods && story.def.mods.includes(id));
 function dMeta() { if (!meta.daily || typeof meta.daily !== 'object') meta.daily = { days: {}, streak: 0, last: '', bestStreak: 0 }; return meta.daily; }
 // sequência: dias seguidos jogados (conta ao começar o desafio do dia)
 function dailyMark(day) {
@@ -2943,16 +2957,205 @@ function dailyResult() {
 $('btn-diario').addEventListener('click', openDaily);
 $('btn-diario-ok').addEventListener('click', () => { sfx.click(); show('tela-titulo'); });
 $('btn-diario-go').addEventListener('click', startDaily);
+// ---------------- Modo História: Capitão Bala × Barão Parafuso (3 capítulos, 15 etapas) ----------------
+const PERS = {
+  cap: { nome: 'Capitão Bala', icon: '🦸', cor: '#2ad4ff' },
+  lumi: { nome: 'Dra. Lumi', icon: '👩‍🔬', cor: '#7dff3a' },
+  barao: { nome: 'Barão Parafuso', icon: '🎩', cor: '#ff3adf' },
+};
+const CAPS = [
+  { nome: 'Capítulo 1 · A Gosma Verde', arena: 'cidade' },
+  { nome: 'Capítulo 2 · Armadilha no Porto', arena: 'porto' },
+  { nome: 'Capítulo 3 · O Laboratório do Barão', arena: 'lab' },
+];
+// tipo: ondas (vencer N ondas), abates (N inimigos), proteger (gerador por N ondas), ninhos (destruir N), coletar (N células), fuga (aguentar N s), chefe
+const STAGES = [
+  { id: '1-1', cap: 0, nome: 'Noite na Praça', tipo: 'ondas', n: 3, wave: 1, par: 100, moedas: 30, fala: [['lumi', 'Capitão, aqui é a Dra. Lumi! Uma gosma verde está acordando zumbis e robôs na Praça Neon.'], ['cap', 'Deixa comigo. Ninguém estraga a noite da cidade!']] },
+  { id: '1-2', cap: 0, nome: 'Faxina Geral', tipo: 'abates', n: 35, wave: 3, par: 110, moedas: 35, fala: [['barao', 'Ha-ha! Eu sou o Barão Parafuso, o maior inventor do mundo! Esta praça vai virar a minha oficina!'], ['cap', 'Inventor, é? Então inventa um jeito de desistir.']] },
+  { id: '1-3', cap: 0, nome: 'Luzes da Cidade', tipo: 'proteger', n: 2, wave: 4, par: 110, moedas: 40, fala: [['lumi', 'O gerador da praça mantém as luzes acesas. Alguns inimigos vão direto nele: proteja-o!']] },
+  { id: '1-4', cap: 0, nome: 'Rastro de Energia', tipo: 'coletar', n: 6, wave: 6, par: 100, moedas: 45, fala: [['lumi', 'A gosma deixou células de energia pela praça. Junte 6 e eu descubro de onde ela vem.'], ['barao', 'Ei! Essas pilhas são minhas!']] },
+  { id: '1-5', cap: 0, nome: 'O Triturador', tipo: 'chefe', boss: 0, bi: 1, wave: 5, par: 120, moedas: 80, fala: [['barao', 'Conheça o TRITURADOR, minha máquina de amassar heróis!'], ['cap', 'Já amassei coisa pior no café da manhã.']], premio: { arma: 'leque' } },
+  { id: '2-1', cap: 1, nome: 'Docas Gosmentas', tipo: 'ninhos', n: 3, wave: 6, par: 120, moedas: 50, fala: [['lumi', 'As células apontam para o Porto Ferrugem. Tem ninhos de gosma nas docas soltando zumbis: destrua os 3!']] },
+  { id: '2-2', cap: 1, nome: 'Armadilha no Armazém', tipo: 'fuga', n: 70, wave: 8, kills3: 45, moedas: 55, fala: [['barao', 'Você caiu na minha armadilha! O armazém vai lotar de robôs!'], ['lumi', 'Aguente firme, Capitão! O resgate chega em 70 segundos!']] },
+  { id: '2-3', cap: 1, nome: 'O Farol', tipo: 'proteger', n: 3, wave: 9, par: 150, moedas: 60, fala: [['lumi', 'Este farol bloqueia o sinal do Barão. Se ele cair, os robôs ficam mais fortes. Não deixe!']] },
+  { id: '2-4', cap: 1, nome: 'Tropa de Elite', tipo: 'abates', n: 60, wave: 11, par: 140, moedas: 65, mods: ['elites'], fala: [['barao', 'Meus robôs de elite, com aura e tudo! Ninguém resiste a um bom acabamento.'], ['cap', 'Brilho bonito. Vai ficar ainda mais bonito no chão.']] },
+  { id: '2-5', cap: 1, nome: 'Gêmeos Faísca', tipo: 'chefe', boss: 6, bi: 2, wave: 10, par: 150, moedas: 100, fala: [['barao', 'Dois é melhor que um! Gêmeos Faísca, ao ataque!'], ['cap', 'Dois? Então vou caprichar em dobro.']], premio: { arma: 'bume' } },
+  { id: '3-1', cap: 2, nome: 'Descida no Escuro', tipo: 'ondas', n: 3, wave: 12, par: 140, moedas: 70, mods: ['escuro'], fala: [['lumi', 'O sinal vem de um laboratório subterrâneo. Está um breu aí embaixo: só a sua lanterna ilumina.']] },
+  { id: '3-2', cap: 2, nome: 'Baterias do Reator', tipo: 'coletar', n: 8, wave: 13, par: 130, moedas: 75, fala: [['lumi', 'As baterias do reator estão soltas. Pegue 8 antes que o Barão ligue a máquina final!']] },
+  { id: '3-3', cap: 2, nome: 'Cubas de Gosma', tipo: 'ninhos', n: 4, wave: 14, par: 150, moedas: 80, fala: [['barao', 'Você não vai passar das minhas cubas de gosma! Ninhos, trabalhem!']] },
+  { id: '3-4', cap: 2, nome: 'Doutor Volt', tipo: 'chefe', boss: 7, bi: 3, wave: 15, par: 170, moedas: 120, fala: [['lumi', 'Cuidado! O Doutor Volt é o robô assistente do Barão e controla os lasers do teto.'], ['barao', 'Volt, mostre a esse herói como se faz ciência!']] },
+  { id: '3-5', cap: 2, nome: 'Megatraje Parafuso', tipo: 'chefe', boss: 8, bi: 4, wave: 15, par: 220, moedas: 300, fala: [['barao', 'Chega! Eu mesmo vou pilotar o meu MEGATRAJE PARAFUSO!'], ['lumi', 'Ele tem três fases, Capitão. Quando o escudo voltar, derrube os satélites!'], ['cap', 'Fim da linha, Barão.']], premio: { skin: 'lendario' } },
+];
+const STAGE_BY = Object.fromEntries(STAGES.map((s) => [s.id, s]));
+const FINAL_FALA = [['barao', 'Meu traje... minha oficina... Tá bom, tá bom! Eu me rendo!'], ['lumi', 'Gosma neutralizada! A cidade, o porto e o laboratório estão salvos.'], ['cap', 'E o Barão vai usar esse talento todo para consertar o que quebrou.'], ['barao', '...Posso pelo menos escolher a cor da vassoura?']];
+const story = { on: false, def: null, t: 0, kills: 0, ninhos: 0, cells: 0, gen: null, cell: null, done: false, w0: 0 };
+function sMeta() { if (!meta.story || typeof meta.story !== 'object') meta.story = { stars: {}, startW: ['blaster'], w: 'blaster', fim: false }; return meta.story; }
+const stageOpen = (i) => i === 0 || !!sMeta().stars[STAGES[i - 1].id];
+const totalStars = () => Object.values(sMeta().stars).reduce((a, b) => a + b, 0);
+// gerador (etapas "proteger") e célula de energia (etapas "coletar") — feitos em código
+const genG = new THREE.Group();
+{ const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 0.6, 12), new THREE.MeshStandardMaterial({ color: 0x3a4a5a, metalness: 0.6, roughness: 0.4 }));
+  base.position.y = 0.3; const core = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.6, 10), new THREE.MeshStandardMaterial({ color: 0x2ad4ff, emissive: 0x2ad4ff, emissiveIntensity: 3 }));
+  core.position.y = 1.3; const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.08, 6, 20), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 2.6, 3.4) })); ring.rotation.x = Math.PI / 2; ring.position.y = 1.4;
+  genG.add(base, core, ring); genG.userData = { core, ring }; genG.visible = false; scene.add(genG); }
+const cellG = new THREE.Group();
+{ const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.42), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.4, 3, 0.6) }));
+  c.position.y = 1; const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7, 6, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2, 0.4), transparent: true, opacity: 0.35, depthWrite: false }));
+  beam.position.y = 3.5; cellG.add(c, beam); cellG.userData = { c }; cellG.visible = false; scene.add(cellG); }
+function storyCleanup() { genG.visible = false; cellG.visible = false; story.gen = null; story.cell = null; }
+function placeCell() {
+  for (let k = 0; k < 20; k++) {
+    const x = rand(-ARENA + 3, ARENA - 3), z = rand(-ARENA + 3, ARENA - 3);
+    if (Math.hypot(x - player.x, z - player.z) < 7) continue;
+    if (PILLARS.some((p, i) => Math.hypot(p[0] - x, p[1] - z) < PILLAR_R[i] + 1.2)) continue;
+    story.cell = { x, z }; cellG.position.set(x, 0, z); cellG.visible = true; return;
+  }
+  story.cell = { x: 0, z: 6 }; cellG.position.set(0, 0, 6); cellG.visible = true;
+}
+function applyStoryStart() {
+  const D = story.def;
+  story.t = 0; story.kills = 0; story.ninhos = 0; story.cells = 0; story.done = false; story.w0 = D.wave;
+  if (D.arena || CAPS[D.cap].arena !== arena) setArena(CAPS[D.cap].arena, true, true);
+  const sw = sMeta().w && sMeta().startW.includes(sMeta().w) ? sMeta().w : 'blaster';
+  setWeapon(sw, true); wLv[sw] = 1 + Math.floor(D.wave / 5);
+  // equipamento inicial: poderes proporcionais à dificuldade da etapa
+  const nb = Math.round((D.wave - 1) * 0.7);
+  for (let i = 0; i < nb; i++) { const o = rollCards().filter((u) => !u.wpn && !u.hide); if (o[0]) { up[o[0].id] = L(o[0].id) + 1; if (o[0].apply) o[0].apply(); } }
+  recalcStats(); player.hp = player.maxHp;
+  if (D.tipo === 'proteger') { story.gen = { x: 0, z: 0, hp: 100, max: 100, flash: 0 }; genG.position.set(0, 0, 0); genG.visible = true; }
+  if (D.tipo === 'coletar') placeCell();
+  if (D.tipo === 'chefe') forceBossT = D.boss;
+}
+function storyGoal() {
+  const D = story.def;
+  switch (D.tipo) {
+    case 'ondas': return `🌊 Vença ${D.n} ondas · ${Math.min(D.n, Math.max(0, wave - story.w0 + (waveState === 'intermission' ? 1 : 0)))}/${D.n}`;
+    case 'abates': return `💀 Derrote ${D.n} inimigos · ${Math.min(story.kills, D.n)}/${D.n}`;
+    case 'proteger': return `🔋 Proteja o gerador · ${Math.ceil(story.gen ? story.gen.hp : 0)}% · onda ${Math.min(D.n, wave - story.w0 + 1)}/${D.n}`;
+    case 'ninhos': return `🪺 Destrua os ninhos · ${story.ninhos}/${D.n}`;
+    case 'coletar': return `⚡ Junte as células · ${story.cells}/${D.n}`;
+    case 'fuga': return `⏱️ Aguente até o resgate · ${Math.max(0, Math.ceil(D.n - story.t))} s`;
+    default: return `👹 Derrote ${D.boss === 8 ? 'o Barão Parafuso' : 'o chefe'}`;
+  }
+}
+function genHit(e, dt) {
+  const G = story.gen; if (!G || story.done) return;
+  G.hp -= dt * (e.type === 'tank' ? 9 : 5); G.flash = 1;
+  if (G.hp <= 0) { G.hp = 0; burst(G.x, 1.4, G.z, 50, [0.6, 2.6, 3.4], 11, 0.7, 0.6, -5); addShake(0.6); storyFail('O gerador foi destruído!'); }
+}
+function updateStory(dt) {
+  const D = story.def; if (story.done) return;
+  story.t += dt;
+  if (story.gen) {
+    for (const e of enemies) if (e.gq === undefined) { e.gq = 1; e.gen = ['zombie', 'fast', 'tank', 'bomba'].includes(e.type) && Math.random() < 0.45; }
+    const G = story.gen; G.flash = Math.max(0, G.flash - dt * 4);
+    genG.userData.ring.rotation.z += dt * 2; genG.userData.core.material.emissive.setRGB(0.16 + G.flash, 0.83 * (G.hp / G.max), 1 * (G.hp / G.max));
+  }
+  if (D.tipo === 'coletar' && story.cell) {
+    cellG.userData.c.rotation.y += dt * 3; cellG.userData.c.position.y = 1 + Math.sin(story.t * 4) * 0.2;
+    if (Math.hypot(player.x - story.cell.x, player.z - story.cell.z) < 1.4) {
+      story.cells++; burst(story.cell.x, 1, story.cell.z, 30, [3.4, 3, 0.6], 8, 0.5, 0.4, 2); sfx.power(); vibrate(20);
+      dmgNum(player.x, 3, player.z, `⚡ ${story.cells}/${D.n}`, 'big');
+      if (story.cells >= D.n) { cellG.visible = false; story.cell = null; storyWin(); } else placeCell();
+    }
+  }
+  if (D.tipo === 'ninhos') {
+    let alive = 0; for (const e of enemies) if (e.type === 'ninho' && !e.dead) alive++;
+    if (story.ninhos + alive < D.n && alive < 2 && (story.nT = (story.nT || 0) - dt) <= 0) { story.nT = 1.5; const a = rand(0, 6.28); spawnEnemy('ninho', Math.sin(a) * ARENA * 0.6, Math.cos(a) * ARENA * 0.6); }
+  }
+  if (D.tipo === 'abates' && story.kills >= D.n) storyWin();
+  if (D.tipo === 'fuga' && story.t >= D.n) storyWin();
+}
+function storyKill(e) { if (!story.on || story.done) return; story.kills++; if (e.type === 'ninho') { story.ninhos++; if (story.def.tipo === 'ninhos' && story.ninhos >= story.def.n) storyWin(); } }
+function storyWaveDone() {
+  if (!story.on || story.done) return; const D = story.def;
+  if ((D.tipo === 'ondas' || D.tipo === 'proteger') && wave - story.w0 + 1 >= D.n) storyWin();
+}
+function storyStars() {
+  const D = story.def, hpOk = D.tipo === 'proteger' ? story.gen && story.gen.hp >= 50 : player.hp >= player.maxHp * 0.5;
+  const s3 = D.tipo === 'fuga' ? story.kills >= D.kills3 : story.t <= D.par;
+  return [true, !!hpOk, !!s3];
+}
+function storyWin() {
+  if (story.done) return; story.done = true;
+  const rid = runId; setTimeout(() => { if (rid === runId) storyEnd(true); }, 1400);
+  showBanner('ETAPA CONCLUÍDA!<small>' + story.def.nome + '</small>', 'boss'); sfx.record(); screenFlash('evo');
+  player.inv = 99;
+}
+function storyFail(why) { if (story.done) return; story.done = true; story.why = why; const rid = runId; setTimeout(() => { if (rid === runId) storyEnd(false); }, 900); }
+function storyEnd(win) {
+  state = 'over'; wakeLock(false); paintSwap(null); stopLaser(); $('hud').hidden = true;
+  const D = story.def, S = sMeta(), i = STAGES.indexOf(D), first = win && !S.stars[D.id];
+  let stars = 0, rew = [];
+  const crit = storyStars(), names = ['Concluir a etapa', D.tipo === 'proteger' ? 'Gerador com 50%+ de energia' : 'Terminar com 50%+ de vida', D.tipo === 'fuga' ? `Derrotar ${D.kills3} inimigos` : `Terminar em até ${D.par} s`];
+  if (win) {
+    stars = crit.filter(Boolean).length; S.stars[D.id] = Math.max(S.stars[D.id] || 0, stars);
+    if (first) { meta.coins += D.moedas; meta.earned += D.moedas; rew.push(`+${D.moedas} 🪙`); if (D.premio && D.premio.arma && !S.startW.includes(D.premio.arma)) { S.startW.push(D.premio.arma); rew.push(`Arma inicial liberada: ${WEAPONS[D.premio.arma].icon} ${WEAPONS[D.premio.arma].nome}`); } }
+    meta.kills += kills; saveMeta();
+    unlockAch('hist1'); if (totalStars() >= 30) unlockAch('estrelas30');
+    if (D.id === '3-5') { S.fim = true; saveMeta(); unlockAch('historia'); if (first) rew.push('Visual liberado: ⭐ Lendário'); }
+  }
+  $('etapa-titulo').textContent = win ? 'ETAPA CONCLUÍDA!' : 'NÃO FOI DESSA VEZ';
+  $('etapa-nome').textContent = `${D.id} · ${D.nome}`;
+  $('etapa-estrelas').innerHTML = [0, 1, 2].map((k) => `<i class="${win && crit[k] ? 'on' : ''}" style="--d:${0.25 + k * 0.25}s">★</i>`).join('');
+  $('etapa-crit').innerHTML = win ? names.map((n, k) => `<li class="${crit[k] ? 'ok' : ''}">${crit[k] ? '✓' : '✗'} ${n}</li>`).join('') : `<li>💥 ${story.why || 'O Capitão caiu!'}</li><li>${storyGoal()}</li>`;
+  $('etapa-premio').innerHTML = rew.length ? '🎁 ' + rew.join(' · ') : win ? 'Melhor: ' + '★'.repeat(S.stars[D.id]) : 'Tente de novo: a etapa recomeça do início.';
+  const next = STAGES[i + 1];
+  $('btn-etapa-prox').hidden = !win; $('btn-etapa-prox').textContent = D.id === '3-5' ? '🏆 Ver o final' : '▶ Próxima etapa';
+  $('btn-etapa-rep').textContent = win ? '↻ Repetir' : '↻ Tentar de novo';
+  story.next = D.id === '3-5' ? 'fim' : next ? next.id : null;
+  show('tela-etapa'); win ? sfx.record() : sfx.over();
+}
+// ---- diálogos (retratos feitos em código, 1-3 falas, dá para pular)
+let dlg = null;
+function dialog(lines, done) { dlg = { lines, i: 0, done }; paintDialog(); show('tela-dialogo'); }
+function paintDialog() {
+  const [who, txt] = dlg.lines[dlg.i], P = PERS[who];
+  $('dlg-retrato').innerHTML = `<i>${P.icon}</i>`; $('dlg-retrato').style.setProperty('--c', P.cor); $('dlg-retrato').className = 'dlg-retrato p-' + who;
+  $('dlg-nome').textContent = P.nome; $('dlg-nome').style.color = P.cor;
+  $('dlg-txt').textContent = txt; $('dlg-txt').classList.remove('in'); void $('dlg-txt').offsetWidth; $('dlg-txt').classList.add('in');
+  $('dlg-n').textContent = `${dlg.i + 1}/${dlg.lines.length}`;
+}
+function dialogNext(skip) { if (!dlg) return; sfx.click(); if (!skip && dlg.i < dlg.lines.length - 1) { dlg.i++; paintDialog(); return; } const f = dlg.done; dlg = null; f(); }
+$('tela-dialogo').addEventListener('click', (e) => { if (e.target.closest('#dlg-pular')) dialogNext(true); else dialogNext(false); });
+// ---- mapa das etapas
+function paintMap() {
+  const S = sMeta();
+  $('mapa-estrelas').textContent = `★ ${totalStars()}/${STAGES.length * 3}`;
+  $('mapa-caps').innerHTML = CAPS.map((C, ci) => `<div class="mcap ar-${C.arena}"><div class="mcap-h"><span>${ARENAS[C.arena].icon}</span>${C.nome}</div><div class="mnodes">${STAGES.map((s, i) => [s, i]).filter(([s]) => s.cap === ci).map(([s, i]) => { const ok = stageOpen(i), st = S.stars[s.id] || 0; return `<button class="mnode${ok ? '' : ' lock'}${st ? ' done' : ''}${s.tipo === 'chefe' ? ' boss' : ''}" data-s="${s.id}" aria-label="Etapa ${s.id} ${s.nome}"><b>${ok ? (s.tipo === 'chefe' ? '👹' : s.id) : '🔒'}</b><small>${ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : ''}</small></button>`; }).join('')}</div></div>`).join('');
+  $('mapa-armas').innerHTML = '<span>Arma inicial:</span>' + ['blaster', 'leque', 'bume'].map((w) => { const ok = S.startW.includes(w); return `<button data-w="${w}" class="${S.w === w ? 'on' : ''}${ok ? '' : ' lock'}" title="${WEAPONS[w].nome}">${ok ? WEAPONS[w].icon : '🔒'}</button>`; }).join('');
+  $('btn-mapa-fim').hidden = !S.fim;
+}
+function openMap() { initAudio(); sfx.click(); story.on = false; if (state !== 'title') toTitle(); paintMap(); show('tela-historia'); }
+function stageDesc(s) { return { ondas: `Vença ${s.n} ondas`, abates: `Derrote ${s.n} inimigos`, proteger: `Proteja o gerador por ${s.n} ondas`, ninhos: `Destrua ${s.n} ninhos`, coletar: `Junte ${s.n} células de energia`, fuga: `Aguente ${s.n} s até o resgate`, chefe: 'Derrote o chefe' }[s.tipo]; }
+function playStage(id, noTalk) {
+  const s = STAGE_BY[id]; if (!s || !stageOpen(STAGES.indexOf(s))) return;
+  const go = () => { story.def = s; startGame('story'); };
+  if (noTalk) go(); else dialog(s.fala.concat([['lumi', `Etapa ${s.id} · ${s.nome}: ${stageDesc(s)}.`]]), go);
+}
+function showEnding() {
+  dialog(FINAL_FALA, () => { $('fim-hist-estrelas').textContent = `★ ${totalStars()}/${STAGES.length * 3}`; show('tela-final'); sfx.record(); });
+}
+$('btn-historia').addEventListener('click', openMap);
+$('btn-mapa-ok').addEventListener('click', () => { sfx.click(); show('tela-titulo'); });
+$('btn-mapa-fim').addEventListener('click', () => { sfx.click(); showEnding(); });
+$('mapa-caps').addEventListener('click', (e) => { const b = e.target.closest('.mnode'); if (!b) return; if (b.classList.contains('lock')) { toast('🔒 Termine a etapa anterior primeiro.'); return; } playStage(b.dataset.s); });
+$('mapa-armas').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.classList.contains('lock')) { toast(`🔒 Libera ao vencer o chefe do capítulo ${b.dataset.w === 'leque' ? 1 : 2}.`); return; } sMeta().w = b.dataset.w; saveMeta(); sfx.click(); paintMap(); });
+$('btn-etapa-rep').addEventListener('click', () => playStage(story.def.id, true));
+$('btn-etapa-mapa').addEventListener('click', openMap);
+$('btn-etapa-prox').addEventListener('click', () => { if (story.next === 'fim') { story.on = false; toTitle(); showEnding(); } else if (story.next) { story.on = false; toTitle(); playStage(story.next); } });
+$('btn-final-ok').addEventListener('click', () => { sfx.click(); openMap(); });
 function startGame(o) {
-  const isDaily = o === 'daily';
+  const isDaily = o === 'daily', isStory = o === 'story' && !!story.def;
   initAudio(); sfx.click();
-  if (!isDaily && LS.get('cb-tutorial', '0') !== '1') { openTutorial('primeira'); return; } // 1ª vez: tutorial rápido antes
+  if (!isDaily && !isStory && LS.get('cb-tutorial', '0') !== '1') { openTutorial('primeira'); return; } // 1ª vez: tutorial rápido antes
   runId++;
-  daily.on = isDaily; daily.won = false;
-  if (isDaily) { daily.day = dayOf(dNow()); daily.info = dailyInfo(daily.day); dailyMark(daily.day); seedRng(daily.day); } else { seedRng(null); if (arena !== meta.arena) setArena(meta.arena); }
+  daily.on = isDaily; daily.won = false; story.on = isStory; storyCleanup();
+  if (isDaily) { daily.day = dayOf(dNow()); daily.info = dailyInfo(daily.day); dailyMark(daily.day); seedRng(daily.day); } else { seedRng(null); if (!isStory && arena !== meta.arena) setArena(meta.arena); }
   clearWorld(); resetPlayer(); resetRun();
   if (isDaily) applyDailyStart();
-  document.body.classList.toggle('escuro', isDaily && dm('escuro')); document.body.classList.toggle('diario', isDaily);
+  if (isStory) applyStoryStart();
+  document.body.classList.toggle('escuro', dm('escuro')); document.body.classList.toggle('diario', isDaily);
   demo = false; state = 'playing'; cardsPending = false;
   if (arena === 'porto') unlockAch('porto');
   if (arena === 'lab') unlockAch('lab');
@@ -2964,7 +3167,8 @@ function startGame(o) {
   tryFullscreen(); wakeLock(true);
   camPos.set(0, 22, 14);
   music(true);
-  startWave(1);
+  startWave(isStory ? story.def.wave : 1);
+  if (isStory) setTimeout(() => { if (story.on && state === 'playing' && story.def.tipo !== 'chefe') showBanner(`${story.def.id} · ${story.def.nome}<small>${stageDesc(story.def)}</small>`, 'novo'); }, 60);
 }
 function enterPlay() {
   show(null); $('hud').hidden = false; measureHud(); wipe();
@@ -3026,7 +3230,7 @@ function pauseGame() {
 function resumeGame() { if (state !== 'paused') return; sfx.click(); state = 'playing'; show(null); music(true); last = performance.now(); wakeLock(true); }
 function toTitle() {
   sfx.click();
-  daily.on = false; seedRng(null); if (arena !== meta.arena) setArena(meta.arena); document.body.classList.remove('escuro', 'diario');
+  daily.on = false; story.on = false; storyCleanup(); seedRng(null); if (arena !== meta.arena) setArena(meta.arena); document.body.classList.remove('escuro', 'diario');
   runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0; wakeLock(false); wipe();
   $('hud').hidden = true; show('tela-titulo');
   paintBest(); paintCoins(); paintArenaSel(); paintResume();
@@ -3086,6 +3290,7 @@ function deathTip() {
   return DICAS[lastHit] || 'Pegue as cartas de poder entre as ondas: dano e cadência deixam tudo mais fácil.';
 }
 function showResults() {
+  if (story.on) { if (!story.done) storyFail('O Capitão caiu!'); else state = 'over'; return; }
   state = 'over'; wakeLock(false); paintSwap(null);
   const dres = dailyResult();
   const rec = !daily.on && score > best && score > 0;
@@ -3190,7 +3395,7 @@ $('btn-som').addEventListener('click', toggleSound);
 $('btn-som2').addEventListener('click', toggleSound);
 $('btn-pause').addEventListener('click', (e) => { e.stopPropagation(); initAudio(); sfx.click(); pauseGame(); });
 $('btn-continuar').addEventListener('click', resumeGame);
-$('btn-reiniciar').addEventListener('click', () => startGame(daily.on ? 'daily' : null));
+$('btn-reiniciar').addEventListener('click', () => (story.on ? playStage(story.def.id, true) : startGame(daily.on ? 'daily' : null)));
 $('btn-menu').addEventListener('click', toTitle);
 $('btn-denovo').addEventListener('click', () => startGame(daily.on ? 'daily' : null));
 $('btn-fim-cont').addEventListener('click', continueRun);
@@ -3325,6 +3530,7 @@ function stepSim(rdt) {
   if (hitstop > 0) { hitstop -= rdt; dt = 0; }
   if (slowT > 0) { slowT -= rdt; dt *= slowT > 0.5 ? slowK : slowK + (1 - slowK) * (1 - Math.max(0, slowT) / 0.5); } // sai da câmera lenta suavemente
   if (state === 'title' || (state === 'playing' && !cine)) updatePlayer(dt);
+  if (story.on && state === 'playing' && !cine) updateStory(dt);
   else if (state === 'playing' && cine) { player.mvx = player.mvz = 0; poseHero(0, 0, 0, 0, 0); hero.g.visible = true; }
   if (state !== 'over') { updateWaves(dt); updateEnemies(dt); if (boss) updateBoss(dt); updateBullets(dt); updateBumes(dt); updateOrbit(dt); updateSweeps(dt); processBlasts(); updateItems(dt); }
   if (state === 'dying') { dyingT -= rdt; player.deathT += rdt * 1.6; poseHero(0, 0, 0, 0, player.deathT); hero.g.visible = true; if (dyingT <= 0) showResults(); }
@@ -3390,6 +3596,9 @@ if (DEBUG) window.__CB = {
   bot(on, mode = 'prio') { bot.on = on; bot.mode = mode; }, speed(n) { simSpeed = clamp(n | 0, 1, 8); }, get runLog() { return runLog; }, clearLog() { runLog.length = 0; },
   daily: { info: (d) => dailyInfo(d), dayOf: (ms) => dayOf(ms), setNow(ms) { daily.nowOverride = ms; }, mark: (d) => dailyMark(d), get on() { return daily.on; }, get cur() { return daily.info; }, get won() { return daily.won; }, start() { startDaily(); }, open() { openDaily(); }, rng: () => [RNG.wave(), RNG.card(), RNG.drop()], seed: (s) => seedRng(s), next: (ms) => msToNextDay(ms), stats: () => ({ ...stats }) },
   cardRar: (id) => (UPG_BY[id] ? UPG_BY[id].rar : null),
+  story: { list: () => STAGES.map((s) => s.id), play(id) { story.def = STAGE_BY[id]; startGame('story'); }, open: () => openMap(), dlg: (id) => playStage(id), next: () => dialogNext(false), skip: () => dialogNext(true), get on() { return story.on; }, get st() { return { t: +story.t.toFixed(1), kills: story.kills, ninhos: story.ninhos, cells: story.cells, gen: story.gen ? Math.round(story.gen.hp) : null, done: story.done, cell: story.cell }; },
+    cell() { if (story.cell) player.x = story.cell.x, player.z = story.cell.z; }, setT(t) { story.t = t; }, setHp(v) { player.hp = v; }, setKills(n) { story.kills = n; }, genHp(v) { if (story.gen) { story.gen.hp = v; if (v <= 0) storyFail('O gerador foi destruído!'); } }, get stars() { return { ...sMeta().stars }; }, get total() { return totalStars(); }, win: () => storyWin(), ending: () => showEnding(),
+    bossHp(f) { if (boss) { boss.hp = boss.maxHp * f + 1; damageBoss(2, true); } }, get bossPh() { return boss ? (boss.p3 ? 3 : boss.p2 ? 2 : 1) : 0; }, get bossName() { return boss ? boss.name : null; } },
   weapon(w) { setWeapon(w); }, get wLv() { return { ...wLv }; }, get wEvo() { return { ...wEvo }; }, wl(w) { return WL(w); }, weaponUp() { weaponUp(); }, setWL(w, n) { wLv[w] = n; hud.pw = '#'; }, get evoReady() { return evoReady(); }, get wName() { return wInfo().nome; }, get weaponNow() { return player.weapon; }, get cards() { return cardOffer.map((u) => u.id); }, pickCard(i) { pickCard(i, true); },
   get up() { return { ...up }; }, get stats() { return { ...stats }; }, giveUp(id, n = 1) { up[id] = Math.min(UPG_BY[id].max, L(id) + n); recalcStats(); hud.pw = '#'; },
   get tele() { return TELE.filter((T) => T.on).map((T) => T.kind); }, forceAct(a) { if (boss) { boss.act = a; boss.actStep = 0; boss.actTimer = 0; boss.shots = 0; } },

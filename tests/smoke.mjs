@@ -114,6 +114,7 @@ async function chromiumRun() {
   check(await E(() => !document.getElementById('tela-loja').hidden && document.querySelectorAll('#loja-lista .li').length >= 10), 'loja e lista de conquistas');
   await v9MenuChecks(page, E, waitFor, '');
   await v10Checks(page, E, waitFor, '');
+  await v11Checks(page, E, waitFor, '', true);
   const mem = await E(() => __CB.mem());
   check(mem.geometries < 400 && mem.textures < 80, 'memória da GPU sob controle', JSON.stringify(mem));
   await volumeChecks(E);
@@ -125,6 +126,66 @@ async function chromiumRun() {
 }
 
 // v8: 3ª arena com laser de varredura, inimigos novos, elites, chefes novos, bumerangue e cartas novas
+// v11: Modo História — objetivos (vencer/falhar), estrelas, progresso salvo, chefe final com 3 fases, final + créditos
+async function v11Checks(page, E, waitFor, tag, full) {
+  const etapa = () => waitFor(() => !document.getElementById('tela-etapa').hidden, 15000);
+  const tit = () => E(() => document.getElementById('etapa-titulo').textContent);
+  await E(() => { const m = __CB.meta; m.story = { stars: {}, startW: ['blaster'], w: 'blaster', fim: false }; delete m.ach.historia; m.skins = m.skins.filter((k) => k !== 'lendario'); __CB.setMeta(m); __CB.story.open(); });
+  check(await waitFor(() => !document.getElementById('tela-historia').hidden && document.querySelectorAll('.mnode').length === 15 && document.querySelectorAll('.mnode.lock').length === 14, 4000), tag + 'mapa da História: 15 etapas em 3 capítulos, só a 1ª aberta');
+  await E(() => __CB.story.dlg('1-1'));
+  check(await waitFor(() => !document.getElementById('tela-dialogo').hidden && /Lumi/.test(document.getElementById('dlg-nome').textContent), 3000), tag + 'diálogo com retrato e nome antes da etapa');
+  await E(() => __CB.story.next());
+  check(await E(() => /Capitão/.test(document.getElementById('dlg-nome').textContent)), tag + 'diálogo avança para a próxima fala');
+  await E(() => __CB.story.skip());
+  check(await waitFor(() => __CB.state === 'playing' && __CB.story.on && __CB.arenaNow === 'cidade' && /Vença 3 ondas/.test(document.getElementById('hud-goal').textContent), 8000), tag + 'Pular inicia a etapa 1-1 com o objetivo no HUD', await E(() => document.getElementById('hud-goal').textContent));
+  await E(() => { window.__CBgod = true; __CB.skipTo(3); __CB.clearQueue(); __CB.killAll(); });
+  check(await etapa() && /CONCLUÍDA/.test(await tit()), tag + 'objetivo "vencer 3 ondas" completa a etapa');
+  const s1 = await E(() => __CB.story.stars['1-1']);
+  check(s1 === 3 && (await E(() => document.querySelectorAll('#etapa-estrelas i.on').length)) === 3, tag + '3 estrelas (vida cheia e rápido)', String(s1));
+  if (full) {
+    await E(() => __CB.story.open());
+    check(await waitFor(() => !document.querySelector('.mnode[data-s="1-2"]').classList.contains('lock'), 3000), tag + 'próxima etapa libera no mapa');
+    await page.screenshot({ path: path.join(OUT, 'mapa.png') });
+    await E(() => __CB.story.play('1-2')); await waitFor(() => __CB.state === 'playing' && __CB.story.on, 8000);
+    await E(() => { window.__CBgod = true; __CB.story.setHp(__CB.maxHp ? __CB.maxHp * 0.3 : 30); __CB.story.setKills(34); __CB.spawn('zombie', 0, 6); });
+    await page.waitForTimeout(400); await E(() => __CB.killAll());
+    check(await etapa() && /CONCLUÍDA/.test(await tit()) && (await E(() => __CB.story.stars['1-2'])) === 2, tag + 'objetivo "derrotar 35" completa; vida abaixo de 50% = 2 estrelas', JSON.stringify(await E(() => __CB.story.stars)));
+    await E(() => __CB.story.play('1-4')); await waitFor(() => __CB.state === 'playing' && __CB.story.on, 8000);
+    for (let i = 0; i < 6; i++) { await E(() => __CB.story.cell()); await page.waitForTimeout(250); }
+    check(await etapa() && /CONCLUÍDA/.test(await tit()), tag + 'objetivo "juntar 6 células" completa', JSON.stringify(await E(() => __CB.story.st)));
+    await E(() => __CB.story.play('2-1')); await waitFor(() => __CB.state === 'playing' && __CB.story.on, 8000);
+    check(await waitFor(() => __CB.types.ninho >= 1, 8000), tag + 'etapa de ninhos cria os ninhos');
+    for (let k = 0; k < 6 && !(await E(() => __CB.story.st.done)); k++) { await E(() => __CB.killAll()); await page.waitForTimeout(1700); }
+    check(await etapa() && /CONCLUÍDA/.test(await tit()), tag + 'objetivo "destruir 3 ninhos" completa', JSON.stringify(await E(() => __CB.story.st)));
+    await E(() => __CB.story.play('2-2')); await waitFor(() => __CB.state === 'playing' && __CB.story.on, 8000);
+    await E(() => __CB.story.setT(69.8));
+    check(await etapa() && /CONCLUÍDA/.test(await tit()), tag + 'objetivo "aguentar 70 s" (fuga) completa');
+  }
+  await E(() => __CB.story.play('1-3')); await waitFor(() => __CB.state === 'playing' && __CB.story.on, 8000);
+  check(await E(() => __CB.story.st.gen === 100), tag + 'etapa Proteger cria o gerador');
+  await E(() => __CB.story.genHp(0));
+  check(await etapa() && /NÃO FOI/.test(await tit()) && !(await E(() => __CB.story.stars['1-3'])), tag + 'gerador destruído = etapa falha (sem estrela)');
+  check(await E(() => !document.getElementById('btn-etapa-rep').hidden && document.getElementById('btn-etapa-prox').hidden), tag + 'falha oferece "Tentar de novo"');
+  check(await E(() => { const j = JSON.parse(localStorage.getItem('cb-meta')); return j.story && j.story.stars['1-1'] === 3; }), tag + 'progresso da História salvo no aparelho');
+  // chefe final
+  await E(() => __CB.story.play('3-5'));
+  check(await waitFor(() => __CB.story.on && __CB.story.bossName && /BARÃO/.test(__CB.story.bossName) && __CB.cine === null, 20000), tag + 'Barão Parafuso aparece no Laboratório', await E(() => __CB.story.bossName + ' ' + __CB.arenaNow));
+  await E(() => __CB.story.bossHp(0.6));
+  check(await waitFor(() => __CB.story.bossPh === 2, 3000), tag + 'Barão fase 2 (66%)');
+  await E(() => __CB.story.bossHp(0.3));
+  check(await waitFor(() => __CB.story.bossPh === 3 && __CB.bossTargets > 1, 3000) || (await E(() => __CB.story.bossPh === 3)), tag + 'Barão fase 3 (33%): última forma com satélites');
+  if (full) await page.screenshot({ path: path.join(OUT, 'barao.png') });
+  await E(() => __CB.killAll());
+  check(await etapa() && /Ver o final/.test(await E(() => document.getElementById('btn-etapa-prox').textContent)), tag + 'Barão derrotado conclui a História');
+  check(await E(() => !!__CB.meta.ach.historia && __CB.meta.skins.includes('lendario') && __CB.meta.story.fim), tag + 'conquista Herói da Cidade + visual Lendário');
+  await E(() => document.getElementById('btn-etapa-prox').click());
+  check(await waitFor(() => !document.getElementById('tela-dialogo').hidden, 4000), tag + 'diálogo final');
+  await E(() => __CB.story.skip());
+  check(await waitFor(() => !document.getElementById('tela-final').hidden && /Obrigado/.test(document.querySelector('.creditos').textContent), 4000), tag + 'tela final com créditos');
+  await E(() => { window.__CBgod = false; document.getElementById('btn-final-ok').click(); });
+  check(await waitFor(() => !document.getElementById('tela-historia').hidden && __CB.state === 'title' && !__CB.story.on, 4000), tag + 'volta ao mapa');
+  await E(() => document.getElementById('btn-mapa-ok').click());
+}
 // v10: Desafio Diário — semente pela data de Brasília, modificadores, sequência de dias (datas simuladas)
 async function v10Checks(page, E, waitFor, tag) {
   const det = await E(() => { const a = JSON.stringify(__CB.daily.info('2026-10-20')), b = JSON.stringify(__CB.daily.info('2026-10-20')); const days = Array.from({ length: 60 }, (_, i) => __CB.daily.info(new Date(Date.UTC(2026, 9, 20 + i, 12)).toISOString().slice(0, 10)));
@@ -328,6 +389,7 @@ async function webkitRun() {
     await continueChecks(page, E, waitFor, '[webkit] ');
     await v9MenuChecks(page, E, waitFor, '[webkit] ');
     await v10Checks(page, E, waitFor, '[webkit] ');
+    await v11Checks(page, E, waitFor, '[webkit] ', false);
     await volumeChecks(E);
     await resumeChecks(page, E, waitFor, '[webkit] ');
     await page.screenshot({ path: path.join(OUT, 'webkit-config.png') });

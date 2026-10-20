@@ -2,7 +2,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610201130
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610201300
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
@@ -29,6 +29,19 @@ npx playwright-core install webkit   # opcional: adiciona a passada iPhone/Safar
 Não precisa de servidor: o script sobe um servidor local sozinho. Uma captura da arena 2 fica em `tests/out/`.
 
 ## Novidades
+
+### Novidades v11 (20/10/2026)
+
+- **📖 Modo História** — botão novo no título. O **Barão Parafuso**, um inventor vaidoso e trapalhão, espalhou uma gosma verde que acorda zumbis e robôs: ele quer transformar a cidade na oficina dele. Com a ajuda da **Dra. Lumi** pelo rádio, o Capitão Bala atravessa **3 capítulos e 15 etapas** (Praça Neon → Porto Ferrugem → Laboratório).
+  - Objetivos variados: vencer ondas, derrotar N inimigos, **proteger o gerador/farol** (alguns inimigos vão direto nele), **destruir ninhos**, **juntar células de energia**, **fuga** (aguentar até o resgate) e **chefes** no fim de cada capítulo.
+  - **Chefe final: BARÃO PARAFUSO** no Megatraje, com **3 fases** (fúria aos 66%; aos 33% a "última forma" com escudo de 3 satélites, lasers e meteoros).
+  - **Diálogos** curtos entre as etapas com retratos (toque para avançar, "Pular" para ir direto).
+  - **Mapa das etapas** com **1 a 3 estrelas**: concluir · terminar com 50%+ de vida (ou do gerador) · terminar no tempo (na fuga: derrotar N inimigos). Cada etapa libera a seguinte.
+  - Prêmios: moedas na 1ª vitória de cada etapa, **arma inicial** Leque (capítulo 1) e Bumerangue (capítulo 2), e o visual **⭐ Lendário** no fim. Cada etapa começa com poderes de acordo com a dificuldade.
+  - Perdeu? "Tentar de novo" recomeça a etapa. Progresso salvo no aparelho.
+  - **Final** com diálogo, créditos e 3 conquistas: Era Uma Vez, Constelação (30 estrelas) e Herói da Cidade.
+- Menu: História e Diário lado a lado. Painel do Desafio Diário cabe inteiro em 375×667.
+- Teste automático: objetivos completam e falham, estrelas, progresso salvo, Barão com 3 fases, final e créditos (Chromium + WebKit).
 
 ### Novidades v10 (20/10/2026)
 
