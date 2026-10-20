@@ -2,7 +2,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610192330
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610201000
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
@@ -29,6 +29,20 @@ npx playwright-core install webkit   # opcional: adiciona a passada iPhone/Safar
 Não precisa de servidor: o script sobe um servidor local sozinho. Uma captura da arena 2 fica em `tests/out/`.
 
 ## Novidades
+
+### Novidades v9 (20/10/2026)
+
+- **Armas com nível (1 a 5)** — pegar de novo a arma que você já usa (carta de ARMA ou item no chão) sobe o nível dela: mais dano, mais disparos, tiros maiores e mais brilhantes. O nível aparece no HUD (**NV 3**), na tela de cartas e na pausa. Trocar de arma guarda o nível de cada uma.
+- **EVOLUÇÃO!** 🧬 — arma no **nível 5** + as **2 cartas da receita** vira uma super arma, com nome, cor e efeito novos e um momento especial na tela:
+  - 🔹 Blaster + ⚡ Cadência + 🎯 Olho de Águia → 🌟 **SUPERNOVA** (rajadas douradas que atravessam e acertam mais críticos)
+  - 🔶 Leque + 🔱 Tiro Múltiplo + 🗡️ Perfuração → 🌪️ **TEMPESTADE** (chumbos vermelhos que atravessam e quicam)
+  - 🔆 Laser + ❄️ Tiro Gélido + 🌩️ Corrente Elétrica → 🌈 **PRISMA** (feixe arco-íris que congela e dá choque)
+  - 💣 Granadas + 💥 Abate Explosivo + 💪 Dano+ → ☄️ **MEGABOMBA** (explosão enorme que solta 3 bombinhas)
+  - 🪃 Bumerangue + 🌀 Lâminas Orbitais + 👟 Botas Turbo → 💿 **DISCO TROVÃO** (discos maiores, mais longe, com choque)
+- **Tela Arsenal** no menu: todas as receitas; as evoluções ainda não descobertas aparecem como **silhueta ???** (salvo no aparelho).
+- **Menu novo**: arenas em grade com arte, requisito 🔒 e **melhor onda em cada arena**; botões com ícones; no PC/tela baixa o título fica ao lado do menu (nada sai da tela). Pausa com arena, onda, pontos, arma e progresso da evolução. Cartas com brilho e nível da arma (NV 2 → 3).
+- **3 conquistas novas**: No Talo (arma nível 5), EVOLUÇÃO! e Arsenal Completo (as 5 evoluções).
+- Teste automático cobre níveis, as 5 evoluções, Arsenal, layout do título e memória (Chromium + WebKit/iPhone).
 
 ### Novidades v8 (19/10/2026)
 

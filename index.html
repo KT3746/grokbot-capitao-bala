@@ -14,7 +14,7 @@
 <meta name="format-detection" content="telephone=no" />
 <title>CAPITÃO BALA</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="css/style.css?v=202610192330" />
+<link rel="stylesheet" href="css/style.css?v=202610201000" />
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js", "three/addons/": "./js/vendor/addons/" } }
 </script>
@@ -35,6 +35,7 @@
   <div id="boss-wrap" hidden><div id="boss-name">CHEFE</div><div class="boss-bar"><div id="boss-fill"></div></div></div>
   <div id="banner" hidden></div>
   <div id="wpn-toast" hidden></div>
+  <div id="evo-fx" hidden></div>
   <button id="btn-trocar" class="swap-btn" hidden aria-label="Trocar de arma"></button>
   <div id="dmg-layer"></div>
   <div id="joy-base" hidden><div id="joy-knob"></div></div>
@@ -62,7 +63,10 @@
     <button id="btn-jogar" class="btn btn-primary">▶ JOGAR</button>
     <div id="arena-sel" class="arena-sel" role="group" aria-label="Arena"></div>
     <button id="btn-loja" class="btn btn-ghost">🛒 Loja &amp; Conquistas <span class="coin-badge" id="titulo-moedas">0</span></button>
-    <button id="btn-como" class="btn btn-ghost">Como jogar</button>
+    <div class="menu-row">
+      <button id="btn-arsenal" class="btn btn-ghost small">🧬 Arsenal</button>
+      <button id="btn-como" class="btn btn-ghost small">❓ Como jogar</button>
+    </div>
     <div class="menu-row">
       <button id="btn-config" class="btn btn-ghost small">⚙ Configurações</button>
       <button id="btn-som" class="btn btn-ghost small">🔊 Som: ligado</button>
@@ -111,12 +115,15 @@
 <section id="tela-pausa" class="screen panel-screen" hidden>
   <div class="panel">
     <h2>Pausado</h2>
+    <div id="pausa-info" class="pausa-info"></div>
     <div id="pausa-upg" class="pausa-upg"></div>
     <button id="btn-continuar" class="btn btn-primary">▶ Continuar</button>
-    <button id="btn-reiniciar" class="btn btn-ghost">↻ Reiniciar</button>
-    <button id="btn-som2" class="btn btn-ghost small">🔊 Som: ligado</button>
-    <button id="btn-config2" class="btn btn-ghost small">⚙ Configurações</button>
-    <button id="btn-menu" class="btn btn-ghost small">Menu inicial</button>
+    <div class="pausa-grid">
+      <button id="btn-reiniciar" class="btn btn-ghost small">↻ Reiniciar</button>
+      <button id="btn-som2" class="btn btn-ghost small">🔊 Som: ligado</button>
+      <button id="btn-config2" class="btn btn-ghost small">⚙ Configurações</button>
+      <button id="btn-menu" class="btn btn-ghost small">🏠 Menu inicial</button>
+    </div>
   </div>
 </section>
 
@@ -124,6 +131,7 @@
   <div class="cartas-box">
     <div class="cartas-sub" id="cartas-sub">Onda concluída!</div>
     <h2>ESCOLHA UM PODER</h2>
+    <div id="cartas-wpn" class="cartas-wpn"></div>
     <div id="cartas" class="cartas"></div>
     <div class="cartas-dica" id="cartas-dica">Toque em uma carta</div>
   </div>
@@ -136,6 +144,15 @@
     <div id="loja-lista" class="loja-lista"></div>
     <p class="loja-dica">Ganhe moedas em toda partida: pontos, ondas e chefes. Melhorias são pequenas e permanentes.</p>
     <button id="btn-loja-ok" class="btn btn-primary">Voltar</button>
+  </div>
+</section>
+
+<section id="tela-arsenal" class="screen panel-screen" hidden>
+  <div class="panel loja arsenal">
+    <div class="loja-head"><h2>🧬 Arsenal</h2><div class="coins" id="arsenal-cont">0/5</div></div>
+    <p class="loja-dica">Pegue a mesma arma de novo (carta ou item no chão) para subir de nível. No <b>nível 5</b>, com as <b>2 cartas da receita</b>, ela <b>EVOLUI</b>.</p>
+    <div id="arsenal-lista" class="arsenal-lista"></div>
+    <button id="btn-arsenal-ok" class="btn btn-primary">Voltar</button>
   </div>
 </section>
 
@@ -164,6 +181,6 @@
 
 <div id="loading">Carregando arena…</div>
 <div id="erro" hidden></div>
-<script type="module" src="js/main.js?v=202610192330"></script>
+<script type="module" src="js/main.js?v=202610201000"></script>
 </body>
 </html>

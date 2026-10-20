@@ -1,6 +1,6 @@
 // CAPITÃO BALA — progresso permanente salvo no aparelho (moedas, melhorias, visuais, conquistas, arenas).
 const KEY = 'cb-meta';
-const DEF = () => ({ v: 1, coins: 0, earned: 0, up: {}, skins: ['classico'], skin: 'classico', ach: {}, kills: 0, bosses: 0, maxWave: 0, runs: 0, arena: 'cidade', elites: 0, bossTypes: [] });
+const DEF = () => ({ v: 1, coins: 0, earned: 0, up: {}, skins: ['classico'], skin: 'classico', ach: {}, kills: 0, bosses: 0, maxWave: 0, runs: 0, arena: 'cidade', elites: 0, bossTypes: [], evos: [], aw: {} });
 export const meta = (() => {
   try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && typeof j === 'object') return Object.assign(DEF(), j); } catch (_) {}
   return DEF();
@@ -47,6 +47,9 @@ export const ACH = [
   { id: 'laser10', nome: 'Dança dos Lasers', desc: 'Escape de 10 varreduras de laser seguidas sem ser atingido.', icon: '🕺', moedas: 50 },
   { id: 'bume5', nome: 'Vai e Volta', desc: 'Derrote 5 inimigos com um único bumerangue.', icon: '🪃', moedas: 40 },
   { id: 'gemeos', nome: 'Separados no Nascimento', desc: 'Derrote os Gêmeos Faísca.', icon: '⚡', moedas: 50 },
+  { id: 'armamax', nome: 'No Talo', desc: 'Leve uma arma ao nível 5.', icon: '⭐', moedas: 30 },
+  { id: 'evo1', nome: 'EVOLUÇÃO!', desc: 'Evolua uma arma (nível 5 + as 2 cartas da receita).', icon: '🧬', moedas: 60 },
+  { id: 'evo5', nome: 'Arsenal Completo', desc: 'Descubra as 5 evoluções de arma.', icon: '🏆', moedas: 250 },
   { id: 'chefes8', nome: 'Enciclopédia de Chefes', desc: 'Derrote os 8 chefes diferentes.', icon: '📚', moedas: 200 },
 ];
 export const ACH_BY = Object.fromEntries(ACH.map((a) => [a.id, a]));

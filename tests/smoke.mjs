@@ -97,6 +97,7 @@ async function chromiumRun() {
   await page.screenshot({ path: path.join(OUT, 'porto.png') });
 
   await v8Checks(page, E, waitFor, '', true);
+  await v9Checks(page, E, waitFor, '');
 
   // fim de jogo: moedas salvas no aparelho
   await E(() => { window.__CBgod = false; __CB.hurt(9999); });
@@ -111,6 +112,7 @@ async function chromiumRun() {
   await E(() => __CB.menu());
   await E(() => __CB.loja('conquistas'));
   check(await E(() => !document.getElementById('tela-loja').hidden && document.querySelectorAll('#loja-lista .li').length >= 10), 'loja e lista de conquistas');
+  await v9MenuChecks(page, E, waitFor, '');
   const mem = await E(() => __CB.mem());
   check(mem.geometries < 400 && mem.textures < 80, 'memória da GPU sob controle', JSON.stringify(mem));
   await volumeChecks(E);
@@ -122,6 +124,37 @@ async function chromiumRun() {
 }
 
 // v8: 3ª arena com laser de varredura, inimigos novos, elites, chefes novos, bumerangue e cartas novas
+// v9: níveis de arma (1-5), EVOLUÇÃO (nível 5 + par de cartas), HUD e memória estável
+async function v9Checks(page, E, waitFor, tag) {
+  const mem0 = await E(() => __CB.mem());
+  await E(() => { window.__CBgod = true; __CB.clearQueue(); __CB.killAll(); __CB.weapon('leque'); });
+  const l0 = await E(() => __CB.wl('leque'));
+  await E(() => __CB.weaponUp());
+  check(await waitFor(() => __CB.wl('leque') === 2 && /NV 2/.test(document.querySelector('.wchip .wlv')?.textContent || ''), 4000), tag + 'arma sobe de nível e o HUD mostra (NV 2)', `${l0} → ${await E(() => __CB.wl('leque'))}`);
+  await E(() => { for (let i = 0; i < 3; i++) __CB.spawn('zombie', i * 2 - 2, 7); });
+  await page.waitForTimeout(800);
+  check(await E(() => __CB.state === 'playing'), tag + 'leque nível 2 dispara sem erro');
+  await E(() => { __CB.weapon('blaster'); __CB.setWL('blaster', 4); __CB.giveUp('cadencia', 1); __CB.giveUp('critico', 1); __CB.weaponUp(); });
+  check(await waitFor(() => __CB.wEvo.blaster && __CB.wName === 'SUPERNOVA' && !document.getElementById('evo-fx').hidden && /EVOLUÇÃO/.test(document.getElementById('evo-fx').textContent), 4000), tag + 'BLASTER nível 5 + Cadência + Olho de Águia → EVOLUÇÃO! SUPERNOVA', JSON.stringify(await E(() => __CB.wEvo)));
+  check(await E(() => __CB.meta.evos.includes('blaster') && __CB.meta.ach.evo1), tag + 'evolução descoberta fica salva (Arsenal) + conquista');
+  if (!tag) await page.screenshot({ path: path.join(OUT, 'evo.png') });
+  for (const [w, r] of [['leque', ['multi', 'perfura']], ['laser', ['gelo', 'raio']], ['granada', ['explosao', 'dano']], ['bume', ['orbita', 'veloc']]]) await E(([w, r]) => { __CB.weapon(w); __CB.setWL(w, 5); for (const k of r) __CB.giveUp(k, 1); __CB.weaponUp(); for (let i = 0; i < 3; i++) __CB.spawn('zombie', i * 2 - 2, 6); }, [w, r]).then(() => page.waitForTimeout(700));
+  check(await E(() => Object.keys(__CB.wEvo).length === 5 && __CB.wName === 'DISCO TROVÃO'), tag + 'as 5 armas evoluem (Tempestade, Prisma, Megabomba, Disco Trovão)', JSON.stringify(await E(() => __CB.wEvo)));
+  await E(() => { __CB.killAll(); });
+  await page.waitForTimeout(1500);
+  const mem1 = await E(() => __CB.mem());
+  check(mem1.geometries <= mem0.geometries + 30 && mem1.textures <= mem0.textures + 4, tag + 'memória estável depois das evoluções', `${JSON.stringify(mem0)} → ${JSON.stringify(mem1)}`);
+}
+async function v9MenuChecks(page, E, waitFor, tag) {
+  await E(() => __CB.menu()); await waitFor(() => __CB.state === 'title');
+  const lay = await E(() => { const b = [...document.querySelectorAll('#arena-sel button')].map((x) => x.getBoundingClientRect()); return { rows: new Set(b.map((r) => Math.round(r.top))).size, out: b.some((r) => r.right > innerWidth || r.left < 0), sw: document.documentElement.scrollWidth <= innerWidth, best: !!document.querySelector('#arena-sel .ar-art') }; });
+  check(lay.rows === 1 && !lay.out && lay.sw && lay.best, tag + 'arenas numa linha só, com arte e sem estourar a tela', JSON.stringify(lay));
+  await E(() => document.getElementById('btn-arsenal').click());
+  check(await waitFor(() => !document.getElementById('tela-arsenal').hidden && document.querySelectorAll('.ars').length === 5 && document.querySelectorAll('.ars.ok').length >= 1, 4000), tag + 'Arsenal mostra as 5 receitas (descobertas com nome)', await E(() => document.getElementById('arsenal-cont').textContent));
+  if (!tag) await page.screenshot({ path: path.join(OUT, 'arsenal.png') });
+  await E(() => document.getElementById('btn-arsenal-ok').click());
+  check(await waitFor(() => !document.getElementById('tela-titulo').hidden, 3000), tag + 'Arsenal volta ao título');
+}
 async function v8Checks(page, E, waitFor, tag, full) {
   const bossReady = () => waitFor(() => __CB.cine === null && __CB.bossPos && __CB.bossPos.enter <= 0, 40000);
   await E(() => { const m = __CB.meta; m.maxWave = Math.max(m.maxWave, 16); __CB.setMeta(m); __CB.arena('lab'); });
@@ -246,9 +279,11 @@ async function webkitRun() {
     check(await E(() => __CB.p2 && __CB.p2.p2), '[webkit] fase 2 do chefe');
     await E(() => { __CB.clearQueue(); __CB.anchor(); __CB.killAll(); }); await waitFor(() => !__CB.boss, 5000);
     await v8Checks(page, E, waitFor, '[webkit] ', false);
+    await v9Checks(page, E, waitFor, '[webkit] ');
     await E(() => { window.__CBgod = false; __CB.hurt(9999); });
     check(await waitFor(() => __CB.state === 'over', 30000), '[webkit] fim de jogo');
     await continueChecks(page, E, waitFor, '[webkit] ');
+    await v9MenuChecks(page, E, waitFor, '[webkit] ');
     await volumeChecks(E);
     await resumeChecks(page, E, waitFor, '[webkit] ');
     await page.screenshot({ path: path.join(OUT, 'webkit-config.png') });
