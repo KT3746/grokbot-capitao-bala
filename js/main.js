@@ -5,10 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610201000';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610201130';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202610201000';
-import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610201000';
+import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202610201130';
+import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610201130';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -534,9 +534,9 @@ const ARENA_LOOK = {
 };
 function recolor(mesh, hex) { const c = new THREE.Color(hex), a = mesh.geometry.attributes.color; for (let i = 0; i < a.count; i++) a.setXYZ(i, c.r, c.g, c.b); a.needsUpdate = true; }
 let arena = 'cidade';
-function setArena(id, force) {
+function setArena(id, force, noSave) {
   if (!ARENAS[id] || (!arenaUnlocked(id) && !force)) id = 'cidade';
-  arena = id; if (meta.arena !== id) { meta.arena = id; saveMeta(); }
+  arena = id; if (!noSave && meta.arena !== id) { meta.arena = id; saveMeta(); }
   PILLARS.length = 0; PILLAR_R.length = 0;
   for (const p of { cidade: CITY_PILLARS, porto: PORTO_PILLARS, lab: LAB_PILLARS }[id]) { PILLARS.push([p[0], p[1]]); PILLAR_R.push(p[2]); }
   cityGroup.visible = id === 'cidade'; portoGroup.visible = id === 'porto'; labGroup.visible = id === 'lab';
@@ -814,8 +814,9 @@ function hideAllTele() { for (const T of TELE) hideTele(T); }
 // ---- poderes (cartas entre ondas) ----
 const RAR = { comum: { nome: 'COMUM', peso: 60 }, raro: { nome: 'RARO', peso: 28 }, epico: { nome: 'ÉPICO', peso: 12 }, arma: { nome: 'ARMA', peso: 10 } };
 const num = (v) => String(v).replace('.', ',');
+const wLocked = () => daily.on && daily.info.mods.some((m) => DMOD_BY[m].w);
 function wCard(w, nome, icon, base) {
-  return { id: 'w_' + w, nome, icon, rar: 'arma', max: 99, hide: true, wpn: w, cond: () => player.weapon !== w || WL(w) < WMAX,
+  return { id: 'w_' + w, nome, icon, rar: 'arma', max: 99, hide: true, wpn: w, cond: () => (player.weapon !== w || WL(w) < WMAX) && !(wLocked() && player.weapon !== w),
     desc: () => (player.weapon === w ? `Sobe para o nível ${WL(w) + 1}: ${wLvTxt(w, WL(w) + 1)}.` : base + (WL(w) > 1 ? ` Volta no nível ${WL(w)}.` : '')),
     apply: () => (player.weapon === w ? weaponUp(w) : setWeapon(w)) };
 }
@@ -824,7 +825,7 @@ const UPGRADES = [
   { id: 'cadencia', nome: 'Cadência+', icon: '⚡', rar: 'comum', max: 5, desc: (l) => `Atira ${l * 15}% mais rápido` },
   { id: 'veloc', nome: 'Botas Turbo', icon: '👟', rar: 'comum', max: 4, desc: (l) => `+${l * 10}% de velocidade de corrida` },
   { id: 'vidamax', nome: 'Vida Máx+', icon: '❤️', rar: 'comum', max: 5, desc: () => '+25 de vida máxima e cura 25', apply: () => { player.maxHp += 25; heal(25); } },
-  { id: 'cura', nome: 'Kit Médico', icon: '🩹', rar: 'comum', max: 99, hide: true, cond: () => player.hp < player.maxHp * 0.8, desc: () => 'Cura 50% da vida agora', apply: () => heal(player.maxHp * 0.5) },
+  { id: 'cura', nome: 'Kit Médico', icon: '🩹', rar: 'comum', max: 99, hide: true, cond: () => player.hp < player.maxHp * 0.8 && !dm('semcura'), desc: () => 'Cura 50% da vida agora', apply: () => heal(player.maxHp * 0.5) },
   { id: 'critico', nome: 'Olho de Águia', icon: '🎯', rar: 'comum', max: 4, desc: (l) => `Chance de crítico (dano x2): ${10 + l * 8}%` },
   { id: 'esquiva', nome: 'Esquiva Rápida', icon: '💨', rar: 'comum', max: 3, desc: (l) => `Recarga da ESQUIVA ${l * 20}% menor` },
   { id: 'ima', nome: 'Ímã', icon: '🧲', rar: 'comum', max: 3, desc: (l) => `Puxa itens de até ${num((1.4 + l * 2.5).toFixed(1))} m` },
@@ -856,6 +857,7 @@ function recalcStats() {
   stats.magnet = 1.4 + 2.5 * L('ima'); stats.dashCd = 1 - 0.2 * L('esquiva'); stats.blast = L('explosao'); stats.vamp = L('vampiro');
   stats.slow = L('gelo'); stats.chain = L('raio'); stats.orbit = L('orbita'); stats.armor = L('couraca'); stats.adren = L('adrenalina'); stats.luck = L('sorte');
   stats.dmg *= 1 + 0.05 * lvl('dano'); stats.magnet += 0.6 * lvl('ima'); stats.dashCd *= 1 - 0.06 * lvl('esquiva');
+  if (daily.on) { if (dm('ima')) stats.magnet += 7; if (dm('vidro')) stats.dmg *= 1.5; if (dm('granadas')) stats.rate *= 1.3; }
   const sh = L('escudo'); const was = stats.shieldCd; stats.shieldCd = sh ? 15 - sh * 3 : 0;
   if (sh && !was) { player.shieldOn = true; player.shieldT = 0; }
 }
@@ -870,10 +872,10 @@ const runPicks = [];
 // ---- continuar e retomar partida
 // contUsed: continues usados nesta partida; banked: moedas/abates já somados ao progresso (evita contar 2x ao continuar)
 let contUsed = 0, runCounted = false; const banked = { coins: 0, kills: 0 };
-const contMax = () => 1 + lvl('segunda');
+const contMax = () => (daily.on ? 0 : 1 + lvl('segunda'));
 const RUN_KEY = 'cb-partida';
 function saveRun() {
-  if (demo) return;
+  if (demo || daily.on) return;
   const snap = { v: 1, wave, score, kills, maxCombo, bosses: bossesKilled.n, up: { ...up }, weapon: player.weapon, weapons: [...runWeapons], picks: [...runPicks], wLv: { ...wLv }, wEvo: { ...wEvo },
     maxHp: player.maxHp, hp: Math.round(player.hp), arena, cont: contUsed, banked: { ...banked }, counted: runCounted, dashes: dashesUsed, hit: runHit, bonus: runBonusCoins, t: Date.now() };
   LS.set(RUN_KEY, JSON.stringify(snap));
@@ -1127,8 +1129,9 @@ let items = [];
 function dropItem(x, z, kind) {
   if (items.length >= 6) return;
   if (!kind) {
-    if (wave >= 2 && Math.random() < 0.08) kind = randomWeaponItem(); // arma rara
-    else kind = player.hp < player.maxHp * 0.5 && Math.random() < 0.45 ? 'health' : ['shotgun', 'rapid', 'health', 'shotgun', 'rapid'][Math.floor(Math.random() * 5)];
+    if (wave >= 2 && RNG.drop() < 0.08) kind = randomWeaponItem(); // arma rara
+    if (!kind) kind = player.hp < player.maxHp * 0.5 && RNG.drop() < 0.45 ? 'health' : ['shotgun', 'rapid', 'health', 'shotgun', 'rapid'][Math.floor(RNG.drop() * 5)];
+    if (kind === 'health' && dm('semcura')) kind = RNG.drop() < 0.5 ? 'shotgun' : 'rapid';
   }
   const it = buildItem(kind);
   it.g.position.set(clamp(x, -ARENA + 1, ARENA - 1), 0, clamp(z, -ARENA + 1, ARENA - 1));
@@ -1136,9 +1139,9 @@ function dropItem(x, z, kind) {
   items.push({ ...it, kind, life: kind.startsWith('w_') ? 11 : 14, t: 0 });
 }
 function randomWeaponItem() {
-  const ks = ['w_leque', 'w_laser', 'w_granada', 'w_bume'].filter((k) => PW[k].weapon !== player.weapon);
-  if (PW['w_' + player.weapon] && WL() < WMAX && Math.random() < 0.45) return 'w_' + player.weapon; // a mesma arma: sobe de nível
-  return ks[Math.floor(Math.random() * ks.length)];
+  const ks = wLocked() ? [] : ['w_leque', 'w_laser', 'w_granada', 'w_bume'].filter((k) => PW[k].weapon !== player.weapon);
+  if (PW['w_' + player.weapon] && WL() < WMAX && (RNG.drop() < 0.45 || !ks.length)) return 'w_' + player.weapon; // a mesma arma: sobe de nível
+  return ks.length ? ks[Math.floor(RNG.drop() * ks.length)] : null;
 }
 
 // ---------------- Chefe ----------------
@@ -1629,7 +1632,7 @@ function killEnemy(e, T) {
   addShake((big ? 0.5 : 0.18));
   if (big) hitstop = 0.05;
   if (!demo) sfx.explode(big);
-  if (!demo && !e.minor && Math.random() < (e.elite ? Math.max(0.6, T.drop * 3) : T.drop) * (1 + 0.25 * stats.luck)) dropItem(e.x, e.z);
+  if (!demo && !e.minor && RNG.drop() < (e.elite ? Math.max(0.6, T.drop * 3) : T.drop) * (1 + 0.25 * stats.luck)) dropItem(e.x, e.z);
   if (!demo && stats.blast > 0) blasts.push({ x: e.x, z: e.z, r: 2 + 0.5 * stats.blast, dmg: (10 + 8 * stats.blast) * stats.dmg });
   if (!demo && stats.vamp > 0 && ++player.vampN >= 10) { player.vampN = 0; heal(stats.vamp * 4); }
 }
@@ -1724,8 +1727,11 @@ function startWave(n, quick = false) {
   wave = n; waveState = 'fight';
   // inimigos escalam mais forte que antes (o jogador agora evolui com poderes)
   waveScale = { hp: 1 + 0.15 * (n - 1) + 0.006 * (n - 1) ** 2, sp: n === 1 ? 0.82 : n === 2 ? 0.9 : Math.min(1.55, 1 + 0.035 * (n - 1)), dmg: 1 + 0.05 * (n - 1) };
-  waveTime = 0; waveTaken = 0;
-  const isBoss = n % 5 === 0;
+  if (dm('rapidos')) waveScale.sp *= 1.25;
+  if (dm('pesados')) { waveScale.hp *= 1.4; waveScale.sp *= 0.9; }
+  if (dm('enxame')) waveScale.hp *= 0.75;
+  waveTime = 0; waveTaken = 0; tempoT = 0;
+  const bEvery = dm('chefes2') ? 3 : 5, isBoss = n % bEvery === 0;
   if (!demo) {
     if (n >= 5) unlockAch('onda5'); if (n >= 10) unlockAch('onda10'); if (n >= 15) unlockAch('onda15');
     if (n >= 20) unlockAch('onda20');
@@ -1733,25 +1739,26 @@ function startWave(n, quick = false) {
     if (n > meta.maxWave) { const u0 = Object.keys(ARENAS).filter((k) => arenaUnlocked(k)); meta.maxWave = n; saveMeta(); for (const k in ARENAS) if (!u0.includes(k) && arenaUnlocked(k)) setTimeout(() => toast(`${ARENAS[k].icon} Nova arena liberada: ${ARENAS[k].nome}! Escolha no menu.`), 2600); }
   }
   spawnQueue = [];
-  const count = isBoss ? 4 + n : n === 1 ? 6 : n === 2 ? 9 : Math.min(64, 6 + Math.round(n * 3.2));
+  let count = isBoss ? 4 + n : n === 1 ? 6 : n === 2 ? 9 : Math.min(64, 6 + Math.round(n * 3.2));
+  if (dm('enxame')) count = Math.min(80, Math.round(count * 1.4));
   const ST = WAVE_START[arena] || WAVE_START.cidade, AM = ARENA_MIX[arena] || {};
   const pf = (k, step, cap) => (n >= ST[k] ? Math.min(cap, step * (n - ST[k] + 1)) * (AM[k] || 1) : 0);
   const fastP = n >= 2 ? Math.min(0.4, 0.12 + 0.04 * n) * (arena === 'lab' ? 0.8 : 1) : 0;
   const tankP = n >= 3 ? Math.min(0.2, 0.05 * (n - 2)) * (AM.tank || 1) : 0;
   const mix = [['tank', tankP], ['bomba', pf('bomba', 0.035, 0.13)], ['sniper', pf('sniper', 0.025, 0.09)], ['escudo', pf('escudo', 0.02, 0.09)], ['drone', pf('drone', 0.03, 0.11)], ['salta', pf('salta', 0.025, 0.09)], ['medico', pf('medico', 0.018, 0.05)], ['fast', fastP]];
   const nNinho = !isBoss && n >= ST.ninho && (n - ST.ninho) % 2 === 0 ? (n >= 20 ? 2 : 1) : 0;
-  for (let i = 0; i < count - nNinho * 2; i++) { let r = Math.random(), t = 'zombie'; for (const [k, p] of mix) { if (r < p) { t = k; break; } r -= p; } spawnQueue.push(t); }
+  for (let i = 0; i < count - nNinho * 2; i++) { let r = RNG.wave(), t = 'zombie'; for (const [k, p] of mix) { if (r < p) { t = k; break; } r -= p; } spawnQueue.push(t); }
   for (let i = 0; i < nNinho; i++) spawnQueue.splice(Math.min(spawnQueue.length, 2 + i * 6), 0, 'ninho');
   // apresenta cada inimigo novo na primeira onda em que ele pode aparecer (e garante um deles); se cair em onda de chefe, vai para a seguinte
   let tip = '';
   if (!isBoss) for (const k in ST) { const s0 = ST[k]; if (n === s0 || (s0 % 5 === 0 && n === s0 + 1)) { tip = INTRO_TIP[k]; if (k !== 'ninho' || !nNinho) spawnQueue.splice(Math.min(spawnQueue.length, 3), 0, k); } }
   spawnT = isBoss ? 3.6 : 1.2;
   if (isBoss) {
-    spawnBoss(n / 5);
+    spawnBoss(n / bEvery);
     if (!demo && !quick) startBossCine(); else showBanner(`CHEFE!<small>${boss.name}${quick ? ' — vida cheia, de novo!' : ''}</small>`, 'boss'); // ao continuar, sem a cinemática longa
     sfx.boss(); vibrate([60, 40, 60]);
   } else {
-    showBanner(`ONDA ${n}<small>${quick ? 'Recomeçando a onda: você consegue!' : tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : n % 5 === 4 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
+    showBanner(`ONDA ${n}<small>${quick ? 'Recomeçando a onda: você consegue!' : tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : n % bEvery === bEvery - 1 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
     sfx.wave();
   }
   saveRun(); // salva no início de cada onda (se o app fechar, o título oferece "Retomar partida")
@@ -2455,6 +2462,8 @@ function updateItems(dt) {
   paintSwap(near);
   if (near && DEBUG && bot.on) swapWeapon();
 }
+let tempoT = 0;
+const tempoLim = () => 35 + wave * 4 + (boss ? 40 : 0);
 function updateWaves(dt) {
   if (demo) {
     spawnT -= dt;
@@ -2462,6 +2471,7 @@ function updateWaves(dt) {
     return;
   }
   if (state !== 'playing') return; // morto: sem bônus nem próxima onda
+  if (dm('tempo') && waveState === 'fight' && !cine && waveTime > tempoLim() && (tempoT -= dt) <= 0) { tempoT = 5; player.inv = 0; hurtPlayer(15, player.x, player.z + 1, 'tempo'); if (player.hp > 0) dmgNum(player.x, 3, player.z, '⏱️ TEMPO!', 'big'); }
   if (waveState === 'intermission') {
     interT -= dt;
     if (interT <= 0) { if (cardsPending) { cardsPending = false; openCards(); } else startWave(wave + 1); }
@@ -2474,7 +2484,7 @@ function updateWaves(dt) {
     const burstN = wave >= 6 ? 2 : 1;
     for (let k = 0; k < burstN && spawnQueue.length; k++) {
       const t = spawnQueue[0], ec = Math.min(0.06, 0.008 + 0.0025 * wave) + (arena === 'lab' ? 0.01 : 0); // raros: ~1 a cada 2-3 ondas no começo
-      const el = wave >= 4 && t !== 'ninho' && Math.random() < ec ? ['rapido', 'blindado', 'explosivo'][Math.floor(Math.random() * 3)] : null;
+      const el = wave >= 4 && t !== 'ninho' && RNG.elite() < ec * (dm('elites') ? 4 : 1) ? ['rapido', 'blindado', 'explosivo'][Math.floor(RNG.elite() * 3)] : null;
       if (spawnEnemy(t, undefined, undefined, el)) spawnQueue.shift();
     }
     spawnT = wave <= 2 ? 1.5 : Math.max(0.25, 1.0 - wave * 0.055);
@@ -2483,9 +2493,10 @@ function updateWaves(dt) {
     waveState = 'intermission'; interT = 1.2; cardsPending = true;
     if (!demo && wave >= 5 && waveTaken === 0) unlockAch('intocavel');
     const bonus = wave * 250; addScore(bonus);
-    player.hp = Math.min(player.maxHp, player.hp + 10);
+    if (!dm('semcura')) player.hp = Math.min(player.maxHp, player.hp + 10);
+    dailyWaveDone();
     if (DEBUG) runLog.push({ onda: wave, t: +waveTime.toFixed(1), hp: Math.round(player.hp), max: player.maxHp, dano: Math.round(waveTaken), arma: player.weapon, poderes: runPicks.length });
-    showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus} · Vida +10</small>`);
+    showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus}${dm('semcura') ? '' : ' · Vida +10'}</small>`);
     sfx.power();
   }
 }
@@ -2675,13 +2686,17 @@ function updateLowHealth(rdt) {
 
 // ---------------- HUD ----------------
 const hud = { score: -1, wave: -1, hp: -1, combo: -1, pw: '' };
+const _dv = new THREE.Vector3();
+function updateDark() { _dv.set(player.x, 1, player.z).project(camera); const el = $('dark'); el.style.setProperty('--x', ((_dv.x + 1) * 50).toFixed(1) + '%'); el.style.setProperty('--y', ((1 - _dv.y) * 50).toFixed(1) + '%'); }
 function updateHud() {
   if (hud.score !== score) { hud.score = score; $('hud-score').textContent = score.toLocaleString('pt-BR'); }
   const left = boss ? -2 : spawnQueue.length + enemies.length;
-  if (hud.wave !== wave || hud.left !== left) {
-    hud.wave = wave; hud.left = left;
-    $('hud-wave').textContent = 'ONDA ' + wave + (left === -2 ? ' · CHEFE' : waveState === 'fight' && left > 0 ? ' · faltam ' + left : '');
-    const goal = $('hud-goal'); const g = wave <= 2 && waveState === 'fight' ? '🎯 Derrote todos · chefe na onda 5' : '';
+  const tl = dm('tempo') && waveState === 'fight' ? Math.max(0, Math.ceil(tempoLim() - waveTime)) : -1;
+  if (dm('escuro')) updateDark();
+  if (hud.wave !== wave || hud.left !== left || hud.tl !== tl) {
+    hud.wave = wave; hud.left = left; hud.tl = tl;
+    $('hud-wave').textContent = 'ONDA ' + wave + (left === -2 ? ' · CHEFE' : waveState === 'fight' && left > 0 ? ' · faltam ' + left : '') + (tl >= 0 ? ` · ⏱ ${tl}s` : '');
+    const goal = $('hud-goal'); const g = daily.on ? (daily.won ? '📅 Desafio cumprido! Faça pontos' : `📅 Meta: vencer a onda ${daily.info.goal}`) : wave <= 2 && waveState === 'fight' ? '🎯 Derrote todos · chefe na onda 5' : '';
     if (goal.textContent !== g) { goal.textContent = g; goal.hidden = !g; }
   }
   const hp = Math.round(player.hp);
@@ -2694,6 +2709,7 @@ function updateHud() {
   if (hud.combo !== cKey) { hud.combo = cKey; const c = $('hud-combo'); c.hidden = !cKey; if (cKey) c.textContent = `COMBO ${combo}${mult > 1 ? ' · x' + mult : ''}`; }
   const W = wInfo();
   let pw = `<div class="wchip${isEvo() ? ' evo' : ''}" style="--c:${W.css}">${W.icon} ${W.nome} <b class="wlv">${isEvo() ? '★ EVO' : 'NV ' + WL()}</b></div>`;
+  if (daily.on) pw += `<div class="dchip" title="Desafio Diário">📅 ${daily.info.mods.map((m) => DMOD_BY[m].icon).join(' ')}</div>`;
   const own = ownedHtml(false);
   if (own) pw += `<div class="upg-row">${own}</div>`;
   for (const k of ['shotgun', 'rapid']) if (player[k] > 0) pw += `<div class="pchip" style="background:${PW[k].css}">${PW[k].label} ${Math.ceil(player[k])}s<i style="width:${(player[k] / PW[k].dur) * 100}%"></i></div>`;
@@ -2733,7 +2749,7 @@ async function wakeLock(on) {
   } catch (_) { wakeSentinel = null; }
 }
 // ---------------- Telas ----------------
-const screens = ['tela-titulo', 'tela-tutorial', 'tela-config', 'tela-pausa', 'tela-fim', 'tela-cartas', 'tela-loja', 'tela-arsenal'];
+const screens = ['tela-titulo', 'tela-tutorial', 'tela-config', 'tela-pausa', 'tela-fim', 'tela-cartas', 'tela-loja', 'tela-arsenal', 'tela-diario'];
 // ---- conquistas (com aviso na tela, em fila)
 const achQ = []; let achBusy = false;
 function unlockAch(id) {
@@ -2750,10 +2766,11 @@ function nextAch() {
   el.hidden = true; void el.offsetWidth; el.hidden = false; sfx.ach(); vibrate(25);
   setTimeout(nextAch, 2700);
 }
-function runCoins() { return Math.round((Math.floor(score / 500) + wave * 3 + bossesKilled.n * 25 + runBonusCoins) * (1 + 0.1 * lvl('moedas') + 0.1 * L('sorte'))); }
+function runCoins() { return Math.round((Math.floor(score / 500) + wave * 3 + bossesKilled.n * 25 + runBonusCoins) * (1 + 0.1 * lvl('moedas') + 0.1 * L('sorte')) * (dm('ima') ? 1.25 : 1)); }
 const fmt = (n) => n.toLocaleString('pt-BR');
 function paintCoins() { $('titulo-moedas').textContent = fmt(meta.coins); $('loja-moedas').textContent = fmt(meta.coins); }
 function paintArenaSel() {
+  { const day = dayOf(dNow()), D = dMeta(), R = D.days[day], st = dailyStreakNow(day); $('diario-sub').textContent = `#${dailyInfo(day).num} · ${R && R.done ? '✓ cumprido hoje' : R ? 'tente de novo!' : 'novo hoje!'}${st ? ' · 🔥 ' + st : ''}`; }
   $('arena-sel').innerHTML = Object.entries(ARENAS).map(([id, A]) => { const ok = arenaUnlocked(id), b = meta.aw[id] || 0; return `<button data-a="${id}" class="ar-${id}${arena === id ? ' on' : ''}${ok ? '' : ' lock'}" aria-pressed="${arena === id}" aria-label="${A.nome}"><span class="ar-art" aria-hidden="true"><i>${ok ? A.icon : '🔒'}</i></span><span class="ar-n">${A.nome}</span><small>${ok ? (b ? `🏁 Melhor: onda ${b}` : 'Nova!') : `🔒 Onda ${A.req}`}</small></button>`; }).join('');
 }
 $('arena-sel').addEventListener('click', (ev) => {
@@ -2831,11 +2848,111 @@ function resetPlayer() {
   Object.assign(player, { x: 0, z: 0, hp: 100, inv: 0, face: Math.PI, dashT: 0, dashCd: 0, fireT: 0, shotgun: 0, rapid: 0, flashT: 0, mvx: 0, mvz: 0, recoil: 0, leanF: 0, leanS: 0, rollT: 0, rollK: 0, hitT: 0, deathT: 0 });
   hero.g.visible = true; hero.skin(meta.skin); poseHero(0, 0, 0, 0, 0);
 }
-function startGame() {
+// ---------------- Desafio Diário (mesmo desafio para todo mundo no dia, horário de Brasília) ----------------
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+// sorteios da partida: no diário vêm de geradores com semente (ondas, elites, cartas e itens iguais para todos)
+const RNG = { wave: Math.random, elite: Math.random, card: Math.random, drop: Math.random };
+function seedRng(seed) { if (seed == null) { for (const k in RNG) RNG[k] = Math.random; return; } for (const k in RNG) RNG[k] = mulberry32(hashStr(seed + ':' + k)); }
+const DMODS = [
+  { id: 'rapidos', nome: 'Inimigos Rápidos', icon: '🏃', desc: 'Todos os inimigos correm 25% mais.' },
+  { id: 'solaser', nome: 'Só Laser', icon: '🔆', desc: 'Começa com o LASER e não troca de arma.', w: 'laser', g: 'arma' },
+  { id: 'granadas', nome: 'Granadas Infinitas', icon: '💣', desc: 'Só GRANADAS, lançadas 30% mais rápido.', w: 'granada', g: 'arma' },
+  { id: 'semcura', nome: 'Sem Cura', icon: '🩸', desc: 'A vida não volta: sem itens de vida, Kit Médico nem +10 por onda.' },
+  { id: 'chefes2', nome: 'Chefes em Dobro', icon: '👹', desc: 'Chefe a cada 3 ondas (em vez de 5).' },
+  { id: 'elites', nome: 'Elites Frequentes', icon: '💠', desc: 'Inimigos de elite aparecem 4× mais.' },
+  { id: 'raras', nome: 'Só Cartas Raras', icon: '💎', desc: 'Nada de cartas comuns: só raras, épicas e armas.' },
+  { id: 'ima', nome: 'Gravidade de Moedas', icon: '🧲', desc: 'Itens voam até você de longe; +25% de moedas.' },
+  { id: 'escuro', nome: 'Escuridão', icon: '🔦', desc: 'Arena no escuro: só a lanterna do Capitão ilumina.' },
+  { id: 'tempo', nome: 'Contra o Tempo', icon: '⏱️', desc: 'Cada onda tem tempo limite; estourou, perde 15 de vida a cada 5 s.' },
+  { id: 'vidro', nome: 'Canhão de Vidro', icon: '🔺', desc: '+50% de dano, mas metade da vida máxima.' },
+  { id: 'enxame', nome: 'Enxame', icon: '🐜', desc: '+40% de inimigos por onda, cada um 25% mais fraco.' },
+  { id: 'pesados', nome: 'Pesos-Pesados', icon: '🏋️', desc: 'Inimigos com +40% de vida, mas 10% mais lentos.' },
+];
+const DMOD_BY = Object.fromEntries(DMODS.map((m) => [m.id, m]));
+const DAILY_REWARD = 150;
+const daily = { on: false, day: '', info: null, won: false, nowOverride: 0 };
+const dNow = () => daily.nowOverride || Date.now();
+const dayOf = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+const dayShift = (day, n) => { const [y, m, d] = day.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10); };
+function msToNextDay(ms) { const [y, m, d] = dayOf(ms).split('-').map(Number); return Date.UTC(y, m - 1, d + 1, 3) - ms; } // Brasília = UTC-3 (sem horário de verão)
+function dailyInfo(day) {
+  const r = mulberry32(hashStr('cb-diario-' + day));
+  const arenas = Object.keys(ARENAS), ar = arenas[Math.floor(r() * arenas.length)];
+  const nMods = r() < 0.5 ? 2 : 3, pool = DMODS.slice(), mods = [];
+  while (mods.length < nMods) { const m = pool.splice(Math.floor(r() * pool.length), 1)[0]; if (m.g && mods.some((x) => x.g === m.g)) continue; mods.push(m); }
+  const wm = mods.find((m) => m.w), ws = Object.keys(WEAPONS);
+  const weapon = wm ? wm.w : ws[Math.floor(r() * ws.length)];
+  const goal = 8 + Math.floor(r() * 5);
+  return { day, arena: ar, weapon, mods: mods.map((m) => m.id), goal, num: Math.floor((Date.UTC(...day.split('-').map((v, i) => (i === 1 ? v - 1 : +v))) - Date.UTC(2026, 9, 20)) / 864e5) + 1 };
+}
+const dm = (id) => daily.on && daily.info.mods.includes(id);
+function dMeta() { if (!meta.daily || typeof meta.daily !== 'object') meta.daily = { days: {}, streak: 0, last: '', bestStreak: 0 }; return meta.daily; }
+// sequência: dias seguidos jogados (conta ao começar o desafio do dia)
+function dailyMark(day) {
+  const D = dMeta();
+  if (D.last === day) return D.streak;
+  D.streak = D.last === dayShift(day, -1) ? D.streak + 1 : 1; D.last = day; D.bestStreak = Math.max(D.bestStreak || 0, D.streak);
+  D.days[day] = D.days[day] || { score: 0, wave: 0, done: false, tries: 0 };
+  const keys = Object.keys(D.days).sort(); while (keys.length > 30) delete D.days[keys.shift()];
+  saveMeta();
+  const d0 = demo; demo = false; if (D.streak >= 3) unlockAch('diario3'); if (D.streak >= 7) unlockAch('diario7'); demo = d0; // conta mesmo chamado do menu
+  return D.streak;
+}
+function dailyStreakNow(day) { const D = dMeta(); return D.last === day || D.last === dayShift(day, -1) ? D.streak : 0; }
+const DOW = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+function paintDaily() {
+  const day = dayOf(dNow()), I = dailyInfo(day), D = dMeta(), R = D.days[day], A = ARENAS[I.arena], W = WEAPONS[I.weapon];
+  const left = msToNextDay(dNow()), hh = Math.floor(left / 36e5), mm = Math.floor((left % 36e5) / 6e4), ss = Math.floor((left % 6e4) / 1e3);
+  const [y, m, d] = day.split('-');
+  let cal = '';
+  for (let k = 6; k >= 0; k--) { const dd = dayShift(day, -k), X = D.days[dd], wd = new Date(dd + 'T12:00:00Z').getUTCDay(); cal += `<div class="dc ${X ? (X.done ? 'done' : 'play') : ''}${k === 0 ? ' hoje' : ''}" title="${dd}"><small>${DOW[wd]}</small><b>${X ? (X.done ? '✓' : '•') : ''}</b><i>${+dd.slice(8)}</i></div>`; }
+  $('diario-card').innerHTML = `<div class="dh"><span class="dn">DESAFIO #${I.num}</span><span class="dd">${d}/${m}/${y}</span></div>
+    <div class="dg"><div class="da ar-${I.arena}"><i>${A.icon}</i><b>${A.nome}</b></div><div class="dw" style="--c:${W.css}"><i>${W.icon}</i><b>${W.nome}</b><small>arma inicial</small></div></div>
+    <div class="dmods">${I.mods.map((id) => { const M = DMOD_BY[id]; return `<div class="dmod"><i>${M.icon}</i><div><b>${M.nome}</b><small>${M.desc}</small></div></div>`; }).join('')}</div>
+    <div class="dgoal">🎯 Meta: vencer a <b>onda ${I.goal}</b> · depois, faça o máximo de pontos</div>
+    <div class="dstats"><div><span>Hoje</span><b>${R && R.score ? fmt(R.score) : '—'}</b><small>${R && R.wave ? 'onda ' + R.wave + (R.done ? ' ✓' : '') : 'ainda não jogou'}</small></div><div><span>Sequência</span><b>🔥 ${dailyStreakNow(day)}</b><small>recorde ${D.bestStreak || 0} dias</small></div><div><span>Prêmio</span><b>${R && R.done ? '✓' : '+' + DAILY_REWARD + ' 🪙'}</b><small>${R && R.done ? 'já ganho hoje' : 'ao cumprir a meta'}</small></div></div>
+    <div class="dcal">${cal}</div>
+    <div class="dnext">⏳ Novo desafio em <b id="diario-cd">${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}</b></div>
+    <div class="dnote">Mesmo desafio para todos hoje. Sem CONTINUAR.</div>`;
+}
+let dailyTimer = 0;
+function openDaily() { initAudio(); sfx.click(); paintDaily(); show('tela-diario'); clearInterval(dailyTimer); dailyTimer = setInterval(() => { if ($('tela-diario').hidden) { clearInterval(dailyTimer); return; } paintDaily(); }, 1000); }
+function startDaily() { startGame('daily'); }
+function applyDailyStart() {
+  const I = daily.info;
+  if (I.arena !== arena) setArena(I.arena, true, true);
+  setWeapon(I.weapon, true);
+  if (dm('vidro')) { player.maxHp = Math.round(player.maxHp / 2); player.hp = player.maxHp; }
+  recalcStats();
+}
+function dailyWaveDone() {
+  if (!daily.on || daily.won || wave < daily.info.goal) return;
+  daily.won = true; const D = dMeta(), R = D.days[daily.day];
+  const first = R && !R.done; if (R) { R.done = true; R.wave = Math.max(R.wave, wave); }
+  if (first) { meta.coins += DAILY_REWARD; meta.earned += DAILY_REWARD; }
+  saveMeta(); unlockAch('diario1');
+  setTimeout(() => { showBanner(`DESAFIO CUMPRIDO!<small>${first ? '+' + DAILY_REWARD + ' 🪙 · ' : ''}agora é pontuação!</small>`, 'boss'); screenFlash('evo'); sfx.record(); }, 1300);
+}
+function dailyResult() {
+  if (!daily.on) return null;
+  const D = dMeta(), R = D.days[daily.day] || (D.days[daily.day] = { score: 0, wave: 0, done: false, tries: 0 });
+  const rec = score > R.score; R.tries = (R.tries || 0) + 1; R.score = Math.max(R.score, score); R.wave = Math.max(R.wave, wave); saveMeta();
+  return { rec, R };
+}
+$('btn-diario').addEventListener('click', openDaily);
+$('btn-diario-ok').addEventListener('click', () => { sfx.click(); show('tela-titulo'); });
+$('btn-diario-go').addEventListener('click', startDaily);
+function startGame(o) {
+  const isDaily = o === 'daily';
   initAudio(); sfx.click();
-  if (LS.get('cb-tutorial', '0') !== '1') { openTutorial('primeira'); return; } // 1ª vez: tutorial rápido antes
+  if (!isDaily && LS.get('cb-tutorial', '0') !== '1') { openTutorial('primeira'); return; } // 1ª vez: tutorial rápido antes
   runId++;
+  daily.on = isDaily; daily.won = false;
+  if (isDaily) { daily.day = dayOf(dNow()); daily.info = dailyInfo(daily.day); dailyMark(daily.day); seedRng(daily.day); } else { seedRng(null); if (arena !== meta.arena) setArena(meta.arena); }
   clearWorld(); resetPlayer(); resetRun();
+  if (isDaily) applyDailyStart();
+  document.body.classList.toggle('escuro', isDaily && dm('escuro')); document.body.classList.toggle('diario', isDaily);
   demo = false; state = 'playing'; cardsPending = false;
   if (arena === 'porto') unlockAch('porto');
   if (arena === 'lab') unlockAch('lab');
@@ -2909,6 +3026,7 @@ function pauseGame() {
 function resumeGame() { if (state !== 'paused') return; sfx.click(); state = 'playing'; show(null); music(true); last = performance.now(); wakeLock(true); }
 function toTitle() {
   sfx.click();
+  daily.on = false; seedRng(null); if (arena !== meta.arena) setArena(meta.arena); document.body.classList.remove('escuro', 'diario');
   runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0; wakeLock(false); wipe();
   $('hud').hidden = true; show('tela-titulo');
   paintBest(); paintCoins(); paintArenaSel(); paintResume();
@@ -2969,7 +3087,8 @@ function deathTip() {
 }
 function showResults() {
   state = 'over'; wakeLock(false); paintSwap(null);
-  const rec = score > best && score > 0;
+  const dres = dailyResult();
+  const rec = !daily.on && score > best && score > 0;
   lastRun = { score, wave, rec };
   if (rec) { best = score; try { localStorage.setItem('cb-recorde', String(best)); } catch (_) {} LS.set('cb-recorde-cont', contUsed ? '1' : '0'); sfx.record(); } else sfx.over();
   clearRun(); // partida terminou: nada para retomar
@@ -2977,9 +3096,9 @@ function showResults() {
   bc.hidden = cl <= 0;
   if (cl > 0) bc.innerHTML = `▶ CONTINUAR (onda ${wave})<small>${cl > 1 ? cl + ' restantes' : 'última chance'} · vida cheia, mantém poderes</small>`;
   $('fim-cont').hidden = !contUsed;
-  $('fim-titulo').textContent = wave >= 10 ? 'QUE BATALHA!' : 'FIM DE JOGO';
-  $('fim-recorde').hidden = !rec;
-  $('fim-dica').innerHTML = '<b>💡 Dica</b>' + deathTip();
+  $('fim-titulo').textContent = daily.on ? (daily.won ? 'DESAFIO CUMPRIDO!' : 'DESAFIO DIÁRIO') : wave >= 10 ? 'QUE BATALHA!' : 'FIM DE JOGO';
+  $('fim-recorde').hidden = !(rec || (dres && dres.rec && score > 0)); $('fim-recorde').textContent = daily.on ? '★ MELHOR DO DIA! ★' : '★ NOVO RECORDE! ★';
+  $('fim-dica').innerHTML = daily.on ? `<b>📅 Desafio #${daily.info.num}</b>${daily.won ? 'Meta cumprida' : `Meta: onda ${daily.info.goal} (chegou à ${wave})`} · melhor hoje: ${fmt(dres.R.score)} pts · 🔥 sequência ${dMeta().streak}` : '<b>💡 Dica</b>' + deathTip();
   countUp($('fim-pontos'), score, 1300);
   $('fim-onda').textContent = wave;
   $('fim-abates').textContent = kills;
@@ -3071,9 +3190,9 @@ $('btn-som').addEventListener('click', toggleSound);
 $('btn-som2').addEventListener('click', toggleSound);
 $('btn-pause').addEventListener('click', (e) => { e.stopPropagation(); initAudio(); sfx.click(); pauseGame(); });
 $('btn-continuar').addEventListener('click', resumeGame);
-$('btn-reiniciar').addEventListener('click', startGame);
+$('btn-reiniciar').addEventListener('click', () => startGame(daily.on ? 'daily' : null));
 $('btn-menu').addEventListener('click', toTitle);
-$('btn-denovo').addEventListener('click', startGame);
+$('btn-denovo').addEventListener('click', () => startGame(daily.on ? 'daily' : null));
 $('btn-fim-cont').addEventListener('click', continueRun);
 $('btn-retomar').addEventListener('click', resumeRun);
 $('btn-fim-menu').addEventListener('click', toTitle);
@@ -3083,16 +3202,20 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 // ---------------- Cartas de poder (entre ondas) ----------------
 let cardOffer = [], cardFocus = 0, cardArmT = 0;
 function rollCards() {
-  const pool = UPGRADES.filter((u) => (u.cond ? u.cond() : true) && L(u.id) < u.max && !(u.rar === 'arma' && wave < 2));
+  const pool = UPGRADES.filter((u) => (u.cond ? u.cond() : true) && L(u.id) < u.max && !(u.rar === 'arma' && wave < 2) && !(dm('raras') && u.rar === 'comum'));
+  const peso = (u) => RAR[u.rar].peso * (u.wpn && u.wpn === player.weapon ? 3.5 : 1); // a arma que você usa aparece mais (dá para chegar ao NV 5)
   const out = []; let hasWeapon = false;
   while (out.length < 3 && pool.length) {
-    let tot = 0; for (const u of pool) tot += RAR[u.rar].peso;
-    let r = Math.random() * tot, pick = pool[pool.length - 1];
-    for (const u of pool) { r -= RAR[u.rar].peso; if (r <= 0) { pick = u; break; } }
+    let tot = 0; for (const u of pool) tot += peso(u);
+    let r = RNG.card() * tot, pick = pool[pool.length - 1];
+    for (const u of pool) { r -= peso(u); if (r <= 0) { pick = u; break; } }
     pool.splice(pool.indexOf(pick), 1);
     if (pick.rar === 'arma') { if (hasWeapon) continue; hasWeapon = true; }
     out.push(pick);
   }
+  // a arma em uso aparece com frequência (≈4 em cada 10 telas) para chegar ao NV 5 lá pela onda 10-12
+  const held = UPG_BY['w_' + player.weapon];
+  if (wave >= 2 && held && !out.includes(held) && held.cond() && RNG.card() < 0.42) { const k = out.findIndex((u) => u.rar === 'arma'); out[k >= 0 ? k : out.length - 1] = held; }
   return out;
 }
 function resetSticks() { joy.id = aimS.id = null; joy.x = joy.y = aimS.x = aimS.y = 0; joyBase.hidden = aimBase.hidden = true; mouse.down = false; for (const k in keys) keys[k] = false; }
@@ -3140,7 +3263,7 @@ const BOT_PRIO = ['w_laser', 'multi', 'dano', 'cadencia', 'escudo', 'explosao', 
 function botChoose(offer) {
   if (bot.mode !== 'prio') return Math.floor(Math.random() * offer.length);
   let best = 0, bp = 99;
-  offer.forEach((u, i) => { const p = BOT_PRIO.indexOf(u.id); if (p >= 0 && p < bp) { bp = p; best = i; } });
+  offer.forEach((u, i) => { const p = u.wpn && u.wpn === player.weapon ? 0.5 : BOT_PRIO.indexOf(u.id); if (p >= 0 && p < bp) { bp = p; best = i; } });
   return best;
 }
 function botInput(dt) {
@@ -3265,6 +3388,8 @@ if (DEBUG) window.__CB = {
   screen(x, z) { _p.set(x, 1, z).project(camera); return { x: (_p.x * 0.5 + 0.5) * window.innerWidth, y: (-_p.y * 0.5 + 0.5) * window.innerHeight }; },
   get bossPos() { return boss ? { x: boss.x, z: boss.z, enter: boss.enter, act: boss.act, step: boss.actStep, y: boss.y } : null; },
   bot(on, mode = 'prio') { bot.on = on; bot.mode = mode; }, speed(n) { simSpeed = clamp(n | 0, 1, 8); }, get runLog() { return runLog; }, clearLog() { runLog.length = 0; },
+  daily: { info: (d) => dailyInfo(d), dayOf: (ms) => dayOf(ms), setNow(ms) { daily.nowOverride = ms; }, mark: (d) => dailyMark(d), get on() { return daily.on; }, get cur() { return daily.info; }, get won() { return daily.won; }, start() { startDaily(); }, open() { openDaily(); }, rng: () => [RNG.wave(), RNG.card(), RNG.drop()], seed: (s) => seedRng(s), next: (ms) => msToNextDay(ms), stats: () => ({ ...stats }) },
+  cardRar: (id) => (UPG_BY[id] ? UPG_BY[id].rar : null),
   weapon(w) { setWeapon(w); }, get wLv() { return { ...wLv }; }, get wEvo() { return { ...wEvo }; }, wl(w) { return WL(w); }, weaponUp() { weaponUp(); }, setWL(w, n) { wLv[w] = n; hud.pw = '#'; }, get evoReady() { return evoReady(); }, get wName() { return wInfo().nome; }, get weaponNow() { return player.weapon; }, get cards() { return cardOffer.map((u) => u.id); }, pickCard(i) { pickCard(i, true); },
   get up() { return { ...up }; }, get stats() { return { ...stats }; }, giveUp(id, n = 1) { up[id] = Math.min(UPG_BY[id].max, L(id) + n); recalcStats(); hud.pw = '#'; },
   get tele() { return TELE.filter((T) => T.on).map((T) => T.kind); }, forceAct(a) { if (boss) { boss.act = a; boss.actStep = 0; boss.actTimer = 0; boss.shots = 0; } },

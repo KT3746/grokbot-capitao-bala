@@ -113,6 +113,7 @@ async function chromiumRun() {
   await E(() => __CB.loja('conquistas'));
   check(await E(() => !document.getElementById('tela-loja').hidden && document.querySelectorAll('#loja-lista .li').length >= 10), 'loja e lista de conquistas');
   await v9MenuChecks(page, E, waitFor, '');
+  await v10Checks(page, E, waitFor, '');
   const mem = await E(() => __CB.mem());
   check(mem.geometries < 400 && mem.textures < 80, 'memória da GPU sob controle', JSON.stringify(mem));
   await volumeChecks(E);
@@ -124,6 +125,48 @@ async function chromiumRun() {
 }
 
 // v8: 3ª arena com laser de varredura, inimigos novos, elites, chefes novos, bumerangue e cartas novas
+// v10: Desafio Diário — semente pela data de Brasília, modificadores, sequência de dias (datas simuladas)
+async function v10Checks(page, E, waitFor, tag) {
+  const det = await E(() => { const a = JSON.stringify(__CB.daily.info('2026-10-20')), b = JSON.stringify(__CB.daily.info('2026-10-20')); const days = Array.from({ length: 60 }, (_, i) => __CB.daily.info(new Date(Date.UTC(2026, 9, 20 + i, 12)).toISOString().slice(0, 10)));
+    const ok = days.every((d) => d.mods.length >= 2 && d.mods.length <= 3 && d.goal >= 8 && d.goal <= 12 && new Set(d.mods).size === d.mods.length && !(d.mods.includes('solaser') && d.mods.includes('granadas')));
+    return { same: a === b, varied: new Set(days.map((d) => d.mods.join())).size > 30, ok, arenas: new Set(days.map((d) => d.arena)).size }; });
+  check(det.same && det.varied && det.ok && det.arenas === 3, tag + 'desafio do dia é determinístico pela data e varia entre os dias (2-3 modificadores)', JSON.stringify(det));
+  const tz = await E(() => [__CB.daily.dayOf(Date.UTC(2026, 9, 21, 2, 30)), __CB.daily.dayOf(Date.UTC(2026, 9, 21, 3, 30)), __CB.daily.next(Date.UTC(2026, 9, 21, 2, 30))]);
+  check(tz[0] === '2026-10-20' && tz[1] === '2026-10-21' && tz[2] === 30 * 60000, tag + 'dia vira à meia-noite de Brasília e a contagem regressiva bate', JSON.stringify(tz));
+  const rng = await E(() => { __CB.daily.seed('2026-10-20'); const a = __CB.daily.rng().concat(__CB.daily.rng()); __CB.daily.seed('2026-10-20'); const b = __CB.daily.rng().concat(__CB.daily.rng()); __CB.daily.seed(null); return JSON.stringify(a) === JSON.stringify(b); });
+  check(rng, tag + 'sorteios de ondas, cartas e itens repetem com a mesma semente');
+  const st = await E(() => { const m = __CB.meta; m.daily = { days: {}, streak: 0, last: '', bestStreak: 0 }; delete m.ach.diario3; __CB.setMeta(m); const D = __CB.daily; return [D.mark('2026-10-18'), D.mark('2026-10-19'), D.mark('2026-10-19'), D.mark('2026-10-20'), !!__CB.meta.ach.diario3, D.mark('2026-10-22'), __CB.meta.daily.bestStreak]; });
+  check(JSON.stringify(st) === '[1,2,2,3,true,1,3]', tag + 'sequência: dias seguidos somam, mesmo dia não conta 2x, pular um dia zera; conquista de 3 dias', JSON.stringify(st));
+  // acha dias com modificadores específicos e testa que valem na partida
+  const dayWith = (id) => E((id) => { for (let i = 0; i < 400; i++) { const d = new Date(Date.UTC(2026, 9, 20 + i, 15)); const I = __CB.daily.info(d.toISOString().slice(0, 10)); if (I.mods.includes(id)) return { ms: d.getTime(), I }; } return null; }, id);
+  const L1 = await dayWith('solaser');
+  await E((ms) => { __CB.daily.setNow(ms); __CB.daily.open(); }, L1.ms);
+  check(await waitFor(() => !document.getElementById('tela-diario').hidden && document.querySelectorAll('.dmod').length >= 2 && /Novo desafio em/.test(document.getElementById('diario-card').textContent) && document.querySelectorAll('.dc').length === 7, 4000), tag + 'cartão do desafio: modificadores, contagem regressiva e últimos 7 dias');
+  if (!tag) await page.screenshot({ path: path.join(OUT, 'diario.png') });
+  await E(() => document.getElementById('btn-diario-go').click());
+  check(await waitFor(() => __CB.state === 'playing' && __CB.daily.on, 8000), tag + 'Desafio Diário começa');
+  const okG = await waitFor(() => __CB.weaponNow === 'laser' && __CB.arenaNow === __CB.daily.cur.arena && !!document.querySelector('.dchip') && /Meta/.test(document.getElementById('hud-goal').textContent), 5000);
+  const g = await E(() => ({ w: __CB.weaponNow, a: __CB.arenaNow, want: __CB.daily.cur.arena, day: __CB.daily.cur.day, chip: !!document.querySelector('.dchip'), goal: document.getElementById('hud-goal').textContent }));
+  check(okG && g.want === L1.I.arena, tag + 'modificador Só Laser + arena do dia aplicados', JSON.stringify(g) + ' esperado ' + L1.I.arena);
+  const offers = await E(() => { window.__CBgod = true; const out = []; for (let i = 0; i < 12; i++) { __CB.openCards(); out.push(...__CB.cards); __CB.pickCard(0); } return out; });
+  check(!offers.some((id) => id.startsWith('w_') && id !== 'w_laser'), tag + 'Só Laser: nenhuma carta de outra arma', offers.filter((x) => x.startsWith('w_')).join(','));
+  await E(() => { window.__CBgod = false; __CB.hurt(9999); });
+  check(await waitFor(() => __CB.state === 'over', 20000), tag + 'fim do desafio');
+  const fim = await E(() => ({ cont: document.getElementById('btn-fim-cont').hidden, t: document.getElementById('fim-titulo').textContent, tries: Object.values(__CB.meta.daily.days).some((d) => d.tries >= 1) }));
+  check(fim.cont && /DESAFIO/.test(fim.t) && fim.tries, tag + 'sem CONTINUAR no diário e resultado do dia salvo', JSON.stringify(fim));
+  const R1 = await dayWith('raras');
+  await E((ms) => { __CB.daily.setNow(ms); __CB.daily.start(); }, R1.ms);
+  await waitFor(() => __CB.state === 'playing' && __CB.daily.on, 8000);
+  const rar = await E(() => { window.__CBgod = true; __CB.skipTo(3); const out = []; for (let i = 0; i < 8; i++) { __CB.openCards(); out.push(...__CB.cards); __CB.pickCard(0); } return out; });
+  check(await E((ids) => ids.every((id) => !__CB.cardRar || __CB.cardRar(id) !== 'comum'), rar), tag + 'Só Cartas Raras: nenhuma carta comum', rar.join(','));
+  const C1 = await dayWith('chefes2');
+  await E((ms) => { __CB.daily.setNow(ms); __CB.daily.start(); }, C1.ms);
+  await waitFor(() => __CB.state === 'playing' && __CB.daily.on, 8000);
+  await E(() => { window.__CBgod = true; __CB.skipTo(3); });
+  check(await waitFor(() => !!__CB.boss, 8000), tag + 'Chefes em Dobro: chefe já na onda 3');
+  await E(() => { __CB.clearQueue(); __CB.killAll(); window.__CBgod = false; __CB.daily.setNow(0); __CB.menu(); });
+  check(await waitFor(() => __CB.state === 'title' && !__CB.daily.on, 6000), tag + 'volta ao título e sai do modo diário');
+}
 // v9: níveis de arma (1-5), EVOLUÇÃO (nível 5 + par de cartas), HUD e memória estável
 async function v9Checks(page, E, waitFor, tag) {
   const mem0 = await E(() => __CB.mem());
@@ -284,6 +327,7 @@ async function webkitRun() {
     check(await waitFor(() => __CB.state === 'over', 30000), '[webkit] fim de jogo');
     await continueChecks(page, E, waitFor, '[webkit] ');
     await v9MenuChecks(page, E, waitFor, '[webkit] ');
+    await v10Checks(page, E, waitFor, '[webkit] ');
     await volumeChecks(E);
     await resumeChecks(page, E, waitFor, '[webkit] ');
     await page.screenshot({ path: path.join(OUT, 'webkit-config.png') });

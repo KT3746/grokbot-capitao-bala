@@ -1,6 +1,6 @@
 // CAPITÃO BALA — progresso permanente salvo no aparelho (moedas, melhorias, visuais, conquistas, arenas).
 const KEY = 'cb-meta';
-const DEF = () => ({ v: 1, coins: 0, earned: 0, up: {}, skins: ['classico'], skin: 'classico', ach: {}, kills: 0, bosses: 0, maxWave: 0, runs: 0, arena: 'cidade', elites: 0, bossTypes: [], evos: [], aw: {} });
+const DEF = () => ({ v: 1, coins: 0, earned: 0, up: {}, skins: ['classico'], skin: 'classico', ach: {}, kills: 0, bosses: 0, maxWave: 0, runs: 0, arena: 'cidade', elites: 0, bossTypes: [], evos: [], aw: {}, daily: { days: {}, streak: 0, last: '', bestStreak: 0 } });
 export const meta = (() => {
   try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && typeof j === 'object') return Object.assign(DEF(), j); } catch (_) {}
   return DEF();
@@ -50,6 +50,9 @@ export const ACH = [
   { id: 'armamax', nome: 'No Talo', desc: 'Leve uma arma ao nível 5.', icon: '⭐', moedas: 30 },
   { id: 'evo1', nome: 'EVOLUÇÃO!', desc: 'Evolua uma arma (nível 5 + as 2 cartas da receita).', icon: '🧬', moedas: 60 },
   { id: 'evo5', nome: 'Arsenal Completo', desc: 'Descubra as 5 evoluções de arma.', icon: '🏆', moedas: 250 },
+  { id: 'diario1', nome: 'Desafiante', desc: 'Cumpra a meta de um Desafio Diário.', icon: '📅', moedas: 40 },
+  { id: 'diario3', nome: 'Pegando o Ritmo', desc: 'Jogue o Desafio Diário 3 dias seguidos.', icon: '🔥', moedas: 60 },
+  { id: 'diario7', nome: 'Semana Perfeita', desc: 'Jogue o Desafio Diário 7 dias seguidos.', icon: '🗓️', moedas: 200 },
   { id: 'chefes8', nome: 'Enciclopédia de Chefes', desc: 'Derrote os 8 chefes diferentes.', icon: '📚', moedas: 200 },
 ];
 export const ACH_BY = Object.fromEntries(ACH.map((a) => [a.id, a]));

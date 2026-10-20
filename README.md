@@ -2,7 +2,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610201000
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610201130
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
@@ -29,6 +29,18 @@ npx playwright-core install webkit   # opcional: adiciona a passada iPhone/Safar
 Não precisa de servidor: o script sobe um servidor local sozinho. Uma captura da arena 2 fica em `tests/out/`.
 
 ## Novidades
+
+### Novidades v10 (20/10/2026)
+
+- **📅 Desafio Diário** — modo novo no título. Todo dia (meia-noite de Brasília) sai um desafio igual para todo mundo: **arena fixa**, **arma inicial** e **2 ou 3 modificadores** sorteados de 13 — Inimigos Rápidos, Só Laser, Granadas Infinitas, Sem Cura, Chefes em Dobro (a cada 3 ondas), Elites Frequentes, Só Cartas Raras, Gravidade de Moedas, Escuridão (só a lanterna ilumina), Contra o Tempo (tempo por onda no HUD), Canhão de Vidro, Enxame e Pesos-Pesados.
+  - Ondas, elites, cartas e itens usam **sorteio com semente do dia**: mesma sorte para todos.
+  - **Meta**: vencer a onda 8 a 12 (muda por dia); depois é pontuação. 1ª vez que cumpre no dia: **+150 🪙**.
+  - Cartão do desafio com os modificadores, **contagem regressiva** para o próximo, melhor resultado do dia, **sequência 🔥 de dias seguidos** e **calendário dos últimos 7 dias**.
+  - Sem CONTINUAR e sem "Retomar" no diário; não mexe no recorde normal.
+  - 3 conquistas: Desafiante, Pegando o Ritmo (3 dias seguidos) e Semana Perfeita (7 dias).
+- **Balanceamento**: a carta da arma que você está usando aparece bem mais (≈4 em cada 10 telas de cartas) — dá para chegar ao **NV 5 lá pela onda 10-12** (robô de teste: NV 5 na onda 10).
+- Correções: o 🪙 do botão da Loja não quebra mais linha em telas de 375 px; conquistas durante a partida aparecem embaixo e não cobrem mais a arma no HUD.
+- Teste automático: semente do dia determinística, virada do dia em Brasília, sequência com datas simuladas, modificadores aplicados (Só Laser, Só Cartas Raras, Chefes em Dobro) e sem continue (Chromium + WebKit).
 
 ### Novidades v9 (20/10/2026)
 
