@@ -558,3 +558,43 @@ body.escuro #dark{display:block}
 @media (prefers-reduced-motion: reduce) {
   #banner::after { content: ""; }
 }
+
+/* ===== Wave 8: combo marco, onda limpa, chefe a caminho, esquiva ===== */
+#hud-combo.hot {
+  color: #ffe08a;
+  text-shadow: 0 0 18px #ff9a1f, 0 0 8px #ff2ab0, 0 2px 0 #000;
+  animation: comboHot 0.55s ease-in-out infinite alternate;
+  transform: scale(1.12);
+}
+@keyframes comboHot {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.25); }
+}
+#banner.clean {
+  color: #ffe08a;
+  text-shadow: 0 0 22px rgba(255, 210, 80, 0.75), 0 3px 0 #000;
+}
+#banner.clean::before {
+  content: "✦ ";
+}
+body.boss-soon #vinheta {
+  opacity: 0.55 !important;
+  background: radial-gradient(circle at 50% 40%, transparent 35%, rgba(120, 10, 20, 0.55) 100%);
+  animation: bossSoon 1.2s ease-in-out infinite;
+}
+@keyframes bossSoon {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+#flash.on.dodge {
+  background: radial-gradient(circle, rgba(140, 220, 255, 0.45), transparent 65%);
+}
+#flash.on.gold {
+  background: radial-gradient(circle, rgba(255, 220, 100, 0.5), transparent 60%);
+}
+#flash.on.combo {
+  background: radial-gradient(circle, rgba(255, 80, 200, 0.4), transparent 65%);
+}
+@media (prefers-reduced-motion: reduce) {
+  #hud-combo.hot, body.boss-soon #vinheta { animation: none; }
+}

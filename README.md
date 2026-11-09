@@ -1,3 +1,10 @@
+## Onda 8
+
+- Marcos de combo (10/20/30) com flash e tremor
+- Onda limpa com flash dourado no banner
+- Vinheta vermelha quando o chefe vem na próxima onda
+- Feedback **Esquiva!** ao escapar de um golpe
+
 ## Onda 7
 
 - Toque pula o banner de onda/chefe
@@ -8,7 +15,7 @@
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202611091252
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202611091600
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.

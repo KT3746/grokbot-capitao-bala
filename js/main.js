@@ -5,10 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202611091252';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202611091600';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202611091252';
-import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202611091252';
+import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202611091600';
+import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202611091600';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -1620,6 +1620,12 @@ function killEnemy(e, T) {
   if (corpses.length < 60) { const l = Math.hypot(e.kx, e.kz) || 1, kk = Math.min(4, l); corpses.push({ type: e.type, ph: e.ph, x: e.x, z: e.z, face: e.face, t: 0, vx: (e.kx / l) * kk, vz: (e.kz / l) * kk, tilt: Math.random() < 0.5 ? -1 : 1 }); }
   kills++; storyKill(e);
   combo++; comboT = 2.2; maxCombo = Math.max(maxCombo, combo);
+  // Onda 8: marcos de combo bem visíveis
+  if (!demo && (combo === 10 || combo === 20 || combo === 30)) {
+    toast(combo + ' de combo!');
+    screenFlash('combo');
+    addShake(0.35);
+  }
   const mult = Math.min(5, 1 + Math.floor(combo / 5));
   const pts = Math.round(T.score * mult * (e.elite ? 3 : 1) * (e.minor ? 0.5 : 1));
   addScore(pts);
@@ -1639,7 +1645,20 @@ function killEnemy(e, T) {
 }
 let lastHit = '', dashesUsed = 0;
 function hurtPlayer(dmg, sx, sz, src = '') {
-  if (demo || cine || (DEBUG && window.__CBgod) || player.inv > 0 || player.dashT > 0 || player.hp <= 0) return;
+  if (demo || cine || (DEBUG && window.__CBgod) || player.hp <= 0) return;
+  // Onda 8: esquiva perfeita — feedback quando a esquiva engole o golpe
+  if (player.dashT > 0) {
+    const now = performance.now();
+    if (!hurtPlayer._dodgeT || now - hurtPlayer._dodgeT > 700) {
+      hurtPlayer._dodgeT = now;
+      toast('Esquiva!');
+      screenFlash('dodge');
+      dmgNum(player.x, 2.8, player.z, 'ESQUIVA!', 'heal');
+      vibrate(18);
+    }
+    return;
+  }
+  if (player.inv > 0) return;
   if (player.shieldOn) { // escudo regenerativo absorve o golpe
     player.shieldOn = false; player.shieldT = stats.shieldCd; player.inv = 0.6;
     sfx.shield(); shock(player.x, player.z, 2.6, [0.4, 1.4, 3], 0.4); showHitDir(sx, sz); vibrate(30);
@@ -1776,7 +1795,9 @@ function startWave(n, quick = false) {
     if (!demo && !quick) startBossCine(); else showBanner(`CHEFE!<small>${boss.name}${quick ? ' — vida cheia, de novo!' : ''}</small>`, 'boss'); // ao continuar, sem a cinemática longa
     sfx.boss(); vibrate([60, 40, 60]);
   } else {
-    showBanner(`ONDA ${n}<small>${quick ? 'Recomeçando a onda: você consegue!' : tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : n % bEvery === bEvery - 1 ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : '');
+    const bossNext = !quick && !tip && n % bEvery === bEvery - 1;
+    document.body.classList.toggle('boss-soon', !!bossNext);
+    showBanner(`ONDA ${n}<small>${quick ? 'Recomeçando a onda: você consegue!' : tip || (n === 1 ? 'Derrote todos os inimigos para vencer a onda' : bossNext ? 'Chefe na próxima!' : 'Prepare-se!')}</small>`, tip ? 'novo' : (bossNext ? 'boss' : ''));
     sfx.wave();
   }
   saveRun(); // salva no início de cada onda (se o app fechar, o título oferece "Retomar partida")
@@ -2527,8 +2548,8 @@ function updateWaves(dt) {
     if (DEBUG) runLog.push({ onda: wave, t: +waveTime.toFixed(1), hp: Math.round(player.hp), max: player.maxHp, dano: Math.round(waveTaken), arma: player.weapon, poderes: runPicks.length });
     // Onda 7: celebra onda sem dano
     const clean = waveTaken === 0;
-    if (clean && !demo) toast('Sem dano nesta onda!');
-    showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus}${dm('semcura') ? '' : ' · Vida +10'}${clean ? ' · Sem dano!' : ''}</small>`);
+    if (clean && !demo) { toast('Sem dano nesta onda!'); screenFlash('gold'); }
+    showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus}${dm('semcura') ? '' : ' · Vida +10'}${clean ? ' · Sem dano!' : ''}</small>`, clean ? 'clean' : '');
     sfx.power();
   }
 }
@@ -2537,6 +2558,7 @@ let bossZoom = 1;
 let cine = null;
 const BOSS_LEMA = { 'BARÃO PARAFUSO': 'O inventor em pessoa, no seu megatraje', 'TRITURADOR': 'Esmaga tudo pelo caminho', 'COLOSSO DE AÇO': 'Pisa forte e faz o chão tremer', 'REI DOS ZUMBIS-ROBÔ': 'Nunca luta sozinho', 'MEGA-DESTRUIDOR': 'Espirais de energia sem fim', 'O IMPLACÁVEL': 'Um pouco de tudo, sem descanso', 'NÚCLEO TRIPLO': 'Derrube os 3 satélites para expor o núcleo', 'GÊMEOS FAÍSCA': 'Dois corpos, uma vida só', 'DOUTOR VOLT': 'Comanda os lasers do laboratório' };
 function startBossCine() {
+  document.body.classList.remove('boss-soon');
   cine = { t: 0, dur: 3.3 };
   $('boss-card').innerHTML = `<small>CHEFE ${boss.bi}</small><b>${boss.name}</b><i>${BOSS_LEMA[boss.type.nome] || 'Prepare-se!'}</i>`;
   const c = $('cine'); c.className = ''; void c.offsetWidth; c.className = 'on';
@@ -2739,7 +2761,7 @@ function updateHud() {
   }
   const mult = Math.min(5, 1 + Math.floor(combo / 5));
   const cKey = combo >= 3 ? combo + 'x' + mult : '';
-  if (hud.combo !== cKey) { hud.combo = cKey; const c = $('hud-combo'); c.hidden = !cKey; if (cKey) c.textContent = `COMBO ${combo}${mult > 1 ? ' · x' + mult : ''}`; }
+  if (hud.combo !== cKey) { hud.combo = cKey; const c = $('hud-combo'); c.hidden = !cKey; if (cKey) { c.textContent = `COMBO ${combo}${mult > 1 ? ' · x' + mult : ''}`; c.classList.toggle('hot', combo >= 10); } else c.classList.remove('hot'); }
   const W = wInfo();
   let pw = `<div class="wchip${isEvo() ? ' evo' : ''}" style="--c:${W.css}">${W.icon} ${W.nome} <b class="wlv">${isEvo() ? '★ EVO' : 'NV ' + WL()}</b></div>`;
   if (daily.on) pw += `<div class="dchip" title="Desafio Diário">📅 ${daily.info.mods.map((m) => DMOD_BY[m].icon).join(' ')}</div>`;
@@ -3249,6 +3271,7 @@ function pauseGame() {
 }
 function resumeGame() { if (state !== 'paused') return; sfx.click(); state = 'playing'; show(null); music(true); last = performance.now(); wakeLock(true); }
 function toTitle() {
+  document.body.classList.remove('boss-soon');
   sfx.click();
   daily.on = false; story.on = false; storyCleanup(); seedRng(null); if (arena !== meta.arena) setArena(meta.arena); document.body.classList.remove('escuro', 'diario');
   runId++; clearWorld(); resetPlayer(); resetRun(); demo = true; state = 'title'; demoT = 0; wakeLock(false); wipe();
