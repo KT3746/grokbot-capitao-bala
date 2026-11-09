@@ -5,10 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202610201300';
+import { initAudio, sfx, music, setMuted, isMuted, musicIntensity, laser as laserSfx, setVolume, getVolumes, setLowHp, setWaveLevel, audioState, musicLevel } from './audio.js?v=202611091252';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202610201300';
-import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202610201300';
+import { buildHero, SKINS, zombieGeo, fastGeo, tankGeo, sniperGeo, bombaGeo, guardGeo, droneGeo, ninhoGeo, saltaGeo, medicoGeo, animInject, animDepthMaterial } from './models.js?v=202611091252';
+import { meta, saveMeta, resetMeta, SHOP, ARENAS, ACH, ACH_BY, lvl, arenaUnlocked } from './meta.js?v=202611091252';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -1724,7 +1724,24 @@ function showBanner(html, cls = '') {
   const b = $('banner'); b.innerHTML = html; b.className = cls; b.hidden = true; void b.offsetWidth; b.hidden = false;
   clearTimeout(showBanner.t); showBanner.t = setTimeout(() => (b.hidden = true), 1900);
 }
+/* Onda 7: toque/tecla pula o banner */
+if (!showBanner._skipBound) {
+  showBanner._skipBound = true;
+  const skipBan = () => {
+    const b = $('banner');
+    if (!b || b.hidden) return;
+    clearTimeout(showBanner.t);
+    b.hidden = true;
+  };
+  window.addEventListener('pointerdown', (e) => {
+    if (e.target && e.target.closest && e.target.closest('#banner')) skipBan();
+  }, true);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') skipBan();
+  }, true);
+}
 function startWave(n, quick = false) {
+  if (n === 1) window.__capLowWarned = false;
   wave = n; waveState = 'fight';
   // inimigos escalam mais forte que antes (o jogador agora evolui com poderes)
   waveScale = { hp: 1 + 0.15 * (n - 1) + 0.006 * (n - 1) ** 2, sp: n === 1 ? 0.82 : n === 2 ? 0.9 : Math.min(1.55, 1 + 0.035 * (n - 1)), dmg: 1 + 0.05 * (n - 1) };
@@ -2508,7 +2525,10 @@ function updateWaves(dt) {
     if (!dm('semcura')) player.hp = Math.min(player.maxHp, player.hp + 10);
     dailyWaveDone(); storyWaveDone();
     if (DEBUG) runLog.push({ onda: wave, t: +waveTime.toFixed(1), hp: Math.round(player.hp), max: player.maxHp, dano: Math.round(waveTaken), arma: player.weapon, poderes: runPicks.length });
-    showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus}${dm('semcura') ? '' : ' · Vida +10'}</small>`);
+    // Onda 7: celebra onda sem dano
+    const clean = waveTaken === 0;
+    if (clean && !demo) toast('Sem dano nesta onda!');
+    showBanner(`ONDA ${wave} CONCLUÍDA!<small>Bônus +${bonus}${dm('semcura') ? '' : ' · Vida +10'}${clean ? ' · Sem dano!' : ''}</small>`);
     sfx.power();
   }
 }
@@ -3569,6 +3589,12 @@ function frame(now) {
     updateCine(rdt);
     if (state === 'playing') updateHud();
   if (state === 'playing') { musicIntensity(boss ? (boss.p2 ? 3 : 2) : waveState === 'fight' ? 1 : 0); setWaveLevel(wave); }
+  // Onda 7: aviso único de vida baixa
+  if (state === 'playing' && lowOn && !window.__capLowWarned) {
+    window.__capLowWarned = true;
+    toast('Vida baixa! Pegue kits ou use a esquiva');
+  }
+  if (!lowOn) window.__capLowWarned = false;
   setLowHp(state === 'playing' && lowOn);
   }
   updateCamera(0, frozen ? 0 : rdt);

@@ -1,8 +1,14 @@
+## Onda 7
+
+- Toque pula o banner de onda/chefe
+- **Sem dano nesta onda!** ao limpar sem levar hit
+- Aviso de **vida baixa**
+
 # CAPITÃO BALA
 
 Arcade de tiro 3D original (Three.js r160, WebGL) — o herói Capitão Bala defende a arena contra zumbis e robôs invasores.
 
-**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202610201300
+**Jogar:** https://kt3746.github.io/grokbot-capitao-bala/?v=202611091252
 
 - Instale como app (PWA): no Chrome do celular, menu ⋮ → "Adicionar à tela inicial". Funciona offline depois da 1ª visita.
 - Menu ⚙ Configurações: qualidade (Auto/Baixa/Média/Alta), tremor da câmera, vibração e som — salvos no aparelho.
